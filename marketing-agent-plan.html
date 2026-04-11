@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Autonomous Marketing Agent — Build Plan</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #e5e5e5;
+      padding: 40px 24px;
+      line-height: 1.6;
+    }
+    .container { max-width: 860px; margin: 0 auto; }
+
+    h1 { font-size: 26px; color: #fff; margin-bottom: 6px; }
+    .meta { font-size: 13px; color: #555; margin-bottom: 48px; }
+
+    h2 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #666;
+      margin: 40px 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #222;
+    }
+
+    /* TECH STACK */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    .stack-card {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .stack-card .label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #555;
+      margin-bottom: 6px;
+    }
+    .stack-card .value {
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .stack-card .note {
+      font-size: 12px;
+      color: #666;
+    }
+
+    /* FOLDER STRUCTURE */
+    .folder {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: 'Menlo', 'Monaco', monospace;
+      font-size: 13px;
+    }
+    .folder .dir { color: #4da6ff; }
+    .folder .file { color: #aaa; }
+    .folder .comment { color: #444; margin-left: 8px; }
+    .folder .line { padding: 2px 0; }
+    .folder .indent1 { padding-left: 20px; }
+    .folder .indent2 { padding-left: 40px; }
+
+    /* PHASES */
+    .phase {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .phase-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .phase-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.5px;
+    }
+    .badge-green { background: #0d2818; color: #4ade80; border: 1px solid #1e5c35; }
+    .badge-blue  { background: #0d1f35; color: #4da6ff; border: 1px solid #1e4a7a; }
+    .badge-purple{ background: #1a0d35; color: #c084fc; border: 1px solid #4a1e7a; }
+    .badge-orange{ background: #2a1a00; color: #fb923c; border: 1px solid #7a4a00; }
+
+    .phase h3 { font-size: 16px; color: #fff; }
+    .phase .timeline { font-size: 12px; color: #555; margin-left: auto; }
+
+    .task-list { list-style: none; }
+    .task-list li {
+      font-size: 13px;
+      color: #aaa;
+      padding: 4px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .task-list li::before {
+      content: '→';
+      color: #333;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* AGENT LOOP */
+    .loop {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 24px;
+    }
+    .loop-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .loop-step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 12px 0;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    .loop-step:last-child { border-bottom: none; }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .loop-step h4 { font-size: 14px; color: #fff; margin-bottom: 4px; }
+    .loop-step p  { font-size: 12px; color: #666; }
+
+    /* DEPS */
+    .deps {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: monospace;
+      font-size: 13px;
+      color: #aaa;
+    }
+    .deps .pkg-name { color: #4da6ff; }
+    .deps .pkg-ver  { color: #4ade80; }
+    .deps .pkg-note { color: #444; }
+
+    /* ENV VARS */
+    .envs {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    .envs .key   { color: #fb923c; }
+    .envs .val   { color: #666; }
+    .envs .line  { padding: 3px 0; }
+
+    /* CALLOUT */
+    .callout {
+      border-left: 3px solid #4ade80;
+      background: #0d2818;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 13px;
+      color: #aaa;
+    }
+    .callout strong { color: #4ade80; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <h1>Autonomous Marketing Agent</h1>
+  <p class="meta">Build plan — Node.js + TypeScript + Anthropic Claude SDK</p>
+
+  <!-- TECH STACK -->
+  <h2>Tech Stack</h2>
+  <div class="stack-grid">
+    <div class="stack-card">
+      <div class="label">Runtime</div>
+      <div class="value">Node.js + TypeScript</div>
+      <div class="note">You already know it. Clean types for API responses.</div>
+    </div>
+    <div class="stack-card">
+      <div class="label">AI Brain</div>
+      <div class="value">Anthropic Claude SDK</div>
+      <div class="note">Tool use + agentic loop. claude-3-5-sonnet.</div>
+    </div>
+    <div class="stack-card">
+      <div class="label">Scraping</div>
+      <div class="value">Firecrawl</div>
+      <div class="note">You already have this. Competitor monitoring.</div>
+    </div>
+    <div class="stack-card">
+      <div class="label">Instagram</div>
+      <div class="value">Meta Graph API</div>
+      <div class="note">Official API. Auto-post photos + reels.</div>
+    </div>
+    <div class="stack-card">
+      <div class="label">Scheduling</div>
+      <div class="value">node-cron</div>
+      <div class="note">Runs the agent daily. Dead simple.</div>
+    </div>
+    <div class="stack-card">
+      <div class="label">Storage</div>
+      <div class="value">SQLite (better-sqlite3)</div>
+      <div class="note">Posts, performance data, competitor history.</div>
+    </div>
+  </div>
+
+  <!-- HOW THE AGENT LOOP WORKS -->
+  <h2>How the Agent Loop Works</h2>
+  <div class="loop">
+    <div class="loop-steps">
+      <div class="loop-step">
+        <div class="step-num badge-green">1</div>
+        <div>
+          <h4>Cron triggers at 7am daily</h4>
+          <p>node-cron wakes up the orchestrator. Kicks off the daily marketing run.</p>
+        </div>
+      </div>
+      <div class="loop-step">
+        <div class="step-num badge-blue">2</div>
+        <div>
+          <h4>Research Agent gathers context</h4>
+          <p>Firecrawl scrapes competitor profiles (Qomfort, Le Bon Shoppe). Checks Google Trends for niche keywords. Pulls yesterday's Instagram performance data.</p>
+        </div>
+      </div>
+      <div class="loop-step">
+        <div class="step-num badge-purple">3</div>
+        <div>
+          <h4>Claude receives full context + tools</h4>
+          <p>You pass Claude: competitor activity, your recent performance, content calendar, brand guidelines. Claude has access to tools it can call.</p>
+        </div>
+      </div>
+      <div class="loop-step">
+        <div class="step-num badge-orange">4</div>
+        <div>
+          <h4>Claude decides what to do and calls tools</h4>
+          <p>Claude might call: get_trending_hashtags → generate_caption → schedule_post. Or decide today isn't a good posting day and just log insights instead.</p>
+        </div>
+      </div>
+      <div class="loop-step">
+        <div class="step-num badge-green">5</div>
+        <div>
+          <h4>Post goes live on Instagram</h4>
+          <p>The posting tool hits the Meta Graph API. Order notification sent to you + Cem via email/Slack.</p>
+        </div>
+      </div>
+      <div class="loop-step">
+        <div class="step-num badge-blue">6</div>
+        <div>
+          <h4>Analytics saved to SQLite</h4>
+          <p>Likes, reach, profile visits, link clicks saved. Next day's agent uses this to make smarter decisions. Feedback loop builds over time.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Why Claude SDK tool use is perfect here:</strong> You define a set of tools (functions your code can run). Claude reads the context and autonomously decides which tools to call, in what order, with what arguments. No hardcoded if/else logic — Claude reasons about what the brand needs today.
+  </div>
+
+  <!-- FOLDER STRUCTURE -->
+  <h2>Folder Structure</h2>
+  <div class="folder">
+    <div class="line"><span class="dir">marketing-agent/</span></div>
+    <div class="line indent1"><span class="dir">src/</span></div>
+    <div class="line indent2"><span class="dir">agents/</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">orchestrator.ts</span><span class="comment">// main agent loop — runs daily</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">research.ts</span><span class="comment">// scrapes competitors + trends</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">strategy.ts</span><span class="comment">// Claude decides content plan</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">analytics.ts</span><span class="comment">// reads IG performance data</span></div>
+    <div class="line indent2"><span class="dir">tools/</span><span class="comment">  // Claude's callable tools</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">firecrawl.ts</span><span class="comment">// scrape competitor profiles</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">instagram.ts</span><span class="comment">// post + read insights</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">trends.ts</span><span class="comment">// google trends + hashtags</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">calendar.ts</span><span class="comment">// content calendar logic</span></div>
+    <div class="line indent2"><span class="dir">db/</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">schema.ts</span><span class="comment">// SQLite tables: posts, analytics, competitors</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">queries.ts</span><span class="comment">// read/write helpers</span></div>
+    <div class="line indent2"><span class="dir">utils/</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">logger.ts</span></div>
+    <div class="line indent2" style="padding-left:60px"><span class="file">notify.ts</span><span class="comment">// email/slack alert when post goes live</span></div>
+    <div class="line indent2"><span class="file">index.ts</span><span class="comment">// entry point — starts cron</span></div>
+    <div class="line indent1"><span class="file">.env</span></div>
+    <div class="line indent1"><span class="file">package.json</span></div>
+    <div class="line indent1"><span class="file">tsconfig.json</span></div>
+  </div>
+
+  <!-- BUILD PHASES -->
+  <h2>Build Order</h2>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-green">Phase 1</span>
+      <h3>Research + Content Generation</h3>
+      <span class="timeline">Week 1 — ~2 days</span>
+    </div>
+    <ul class="task-list">
+      <li>Set up repo, TypeScript, Anthropic SDK</li>
+      <li>Build Firecrawl tool — scrape Qomfort + Le Bon Shoppe IG profiles daily, store in SQLite</li>
+      <li>Build trends tool — Google Trends API for "slouch socks", "birkenstock socks" keywords</li>
+      <li>Build strategy agent — Claude receives competitor data + trends, outputs: content theme, caption, 30 hashtags, best posting time</li>
+      <li>Output saved to SQLite content calendar table. Log to console for now.</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-blue">Phase 2</span>
+      <h3>Instagram Auto-Posting</h3>
+      <span class="timeline">Week 2 — ~2 days</span>
+    </div>
+    <ul class="task-list">
+      <li>Set up Meta Developer App + Instagram Business Account</li>
+      <li>Build instagram.ts tool — post image with caption + hashtags via Graph API</li>
+      <li>Connect to orchestrator — Claude calls post_to_instagram tool when content is ready</li>
+      <li>Add notify.ts — email/Slack alert to you + Cem when post goes live</li>
+      <li>Test full loop end to end with a real post</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-purple">Phase 3</span>
+      <h3>Analytics Feedback Loop</h3>
+      <span class="timeline">Week 3 — ~2 days</span>
+    </div>
+    <ul class="task-list">
+      <li>Build analytics.ts — pull Instagram Insights (reach, likes, profile visits, link clicks) 24h after each post</li>
+      <li>Save to SQLite posts table with performance scores</li>
+      <li>Update orchestrator context — Claude now sees "last 10 posts + their performance" when making decisions</li>
+      <li>Claude starts learning: "carousel posts of cream colourway on Tuesdays get 3x reach"</li>
+    </ul>
+  </div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-orange">Phase 4</span>
+      <h3>TikTok + Dashboard</h3>
+      <span class="timeline">Month 2</span>
+    </div>
+    <ul class="task-list">
+      <li>Apply for TikTok Content Posting API access (requires business verification)</li>
+      <li>Build tiktok.ts tool once API access granted</li>
+      <li>Build simple Next.js dashboard — view content calendar, post history, performance charts</li>
+      <li>Cem can see everything in one place, override any scheduled post</li>
+    </ul>
+  </div>
+
+  <!-- DEPENDENCIES -->
+  <h2>Key Dependencies</h2>
+  <div class="deps">
+    <div style="margin-bottom:8px; color:#555;">package.json dependencies</div>
+    <div><span class="pkg-name">@anthropic-ai/sdk</span>       <span class="pkg-ver">latest</span>   <span class="pkg-note">// Claude agent + tool use</span></div>
+    <div><span class="pkg-name">@mendable/firecrawl-js</span>  <span class="pkg-ver">latest</span>   <span class="pkg-note">// competitor scraping</span></div>
+    <div><span class="pkg-name">better-sqlite3</span>          <span class="pkg-ver">latest</span>   <span class="pkg-note">// local DB for posts + analytics</span></div>
+    <div><span class="pkg-name">node-cron</span>               <span class="pkg-ver">latest</span>   <span class="pkg-note">// daily scheduling</span></div>
+    <div><span class="pkg-name">axios</span>                   <span class="pkg-ver">latest</span>   <span class="pkg-note">// Meta Graph API calls</span></div>
+    <div><span class="pkg-name">dotenv</span>                  <span class="pkg-ver">latest</span>   <span class="pkg-note">// env vars</span></div>
+    <div style="margin-top:8px"><span class="pkg-name">typescript</span>              <span class="pkg-ver">latest</span>   <span class="pkg-note">// devDependency</span></div>
+    <div><span class="pkg-name">tsx</span>                     <span class="pkg-ver">latest</span>   <span class="pkg-note">// run TS directly, no build step</span></div>
+  </div>
+
+  <!-- ENV VARS -->
+  <h2>Environment Variables Needed</h2>
+  <div class="envs">
+    <div class="line"><span class="key">ANTHROPIC_API_KEY</span>=<span class="val">your_key</span></div>
+    <div class="line"><span class="key">FIRECRAWL_API_KEY</span>=<span class="val">your_key</span></div>
+    <div class="line"><span class="key">META_APP_ID</span>=<span class="val">from Meta Developer portal</span></div>
+    <div class="line"><span class="key">META_APP_SECRET</span>=<span class="val">from Meta Developer portal</span></div>
+    <div class="line"><span class="key">INSTAGRAM_ACCESS_TOKEN</span>=<span class="val">long-lived page token</span></div>
+    <div class="line"><span class="key">INSTAGRAM_ACCOUNT_ID</span>=<span class="val">your IG business account ID</span></div>
+    <div class="line"><span class="key">NOTIFY_EMAIL</span>=<span class="val">you + cem emails</span></div>
+  </div>
+
+  <!-- FIRST THING TO BUILD -->
+  <h2>Start Here</h2>
+  <div class="callout">
+    <strong>First commit:</strong> Get Claude receiving competitor data and outputting a content brief to the console. Nothing fancy — just prove the brain works. Once you see Claude suggesting "post a flat-lay of cream socks with Birkenstocks today because Qomfort posted a similar style yesterday and got high engagement", you'll know the agent is thinking correctly. Everything else is just plumbing.
+  </div>
+
+</div>
+</body>
+</html>
