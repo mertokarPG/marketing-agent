@@ -10,7 +10,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.52.0",
+    "@anthropic-ai/sdk": "^0.88.0",
     "@mendable/firecrawl-js": "^1.19.0",
     "better-sqlite3": "^11.7.0",
     "node-cron": "^3.0.3",
