@@ -89,7 +89,7 @@ export function getRecentPosts(
 ): PostRow[] {
   const rows = db
     .prepare(
-      "SELECT * FROM posts WHERE brand_id = ? ORDER BY created_at DESC LIMIT ?"
+      "SELECT * FROM posts WHERE brand_id = ? ORDER BY created_at DESC, id DESC LIMIT ?"
     )
     .all(brandId, limit) as Array<PostRow & { hashtags: string }>;
 
