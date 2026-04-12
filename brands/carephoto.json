@@ -1,0 +1,38 @@
+{
+  "id": "carephoto",
+  "name": "carephoto.art",
+  "domain": "carephoto.art",
+  "niche": "AI photo editing and enhancement",
+  "description": "AI-powered photo editing studio specializing in portrait enhancement, dating profile photos, and professional headshots. Makes everyone look their best with intelligent AI editing.",
+  "competitors": [
+    { "name": "Higgsfield", "website": "https://higgsfield.ai" },
+    { "name": "Kaze AI", "website": "https://kaze.ai" },
+    { "name": "Easy-Peasy AI", "website": "https://easy-peasy.ai" },
+    { "name": "Clipfly AI", "website": "https://clipfly.ai" },
+    { "name": "Remini", "website": "https://remini.ai" },
+    { "name": "Lensa AI", "website": "https://lensa-ai.com" },
+    { "name": "The Match Artist", "website": "https://thematchartist.com" },
+    { "name": "uwear.ai", "website": "https://uwear.ai" },
+    { "name": "Artguru AI", "website": "https://artguru.ai" },
+    { "name": "PicWish", "website": "https://picwish.com" },
+    { "name": "Fotor", "website": "https://fotor.com" },
+    { "name": "Leonardo AI", "website": "https://leonardo.ai" }
+  ],
+  "keywords": [
+    "AI photo editor",
+    "AI dating photos",
+    "AI portrait",
+    "photo enhancement",
+    "AI headshots",
+    "AI photo studio"
+  ],
+  "tone": "Friendly, confident, slightly playful. Emphasize transformation and results. Speak to people who want to look their best online — dating profiles, LinkedIn, social media.",
+  "instagram": {
+    "accountId": "",
+    "accessToken": ""
+  },
+  "postingSchedule": {
+    "frequency": "daily",
+    "preferredTime": "10:00"
+  }
+}
