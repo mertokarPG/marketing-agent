@@ -10,6 +10,8 @@ import { getRecentPostsTool } from "./tools/recent-posts.js";
 import { getPostPerformanceTool } from "./tools/post-performance.js";
 import { schedulePost } from "./tools/schedule-post.js";
 import { sendNotification } from "./tools/notify.js";
+import { browsePromptBank } from "./tools/prompt-bank.js";
+import { brandImage, brandCarousel } from "./tools/brand-image.js";
 import {
   insertPost,
   insertCompetitorSnapshot,
@@ -90,7 +92,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
       inputSchema: z.object({
         caption: z.string().describe("Post caption"),
         hashtags: z.array(z.string()).describe("Hashtags for the post"),
-        imageUrl: z.string().url().describe("URL to the post image"),
+        images: z.array(z.string()).describe("Array of image URLs or local paths. Single item = regular post, multiple = carousel."),
         scheduledTime: z
           .string()
           .optional()
@@ -115,7 +117,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
             brand_id: brand.id,
             caption: input.caption,
             hashtags: input.hashtags,
-            image_url: input.imageUrl,
+            image_url: input.images[0],
             content_theme: "scheduled",
             posted_at: input.scheduledTime ?? new Date().toISOString(),
           });
@@ -127,6 +129,136 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
         return result;
       },
     }),
+
+    ...(brand.promptBankPath
+      ? [
+          betaZodTool({
+            name: "browse_prompt_bank",
+            description:
+              "Browse the brand's prompt bank of existing AI-generated images. Use this to find images that match today's content strategy. Filter by category to narrow results.",
+            inputSchema: z.object({
+              category: z
+                .string()
+                .optional()
+                .describe(
+                  "Filter by category: portrait, lifestyle, fashion, beauty, artistic, lingerie, architectural, product, landscape, automotive, cinematic, romantic. Omit to see all."
+                ),
+            }),
+            run: async (input) => {
+              return browsePromptBank(
+                brand.promptBankPath!,
+                brand.domain,
+                input.category
+              );
+            },
+          }),
+        ]
+      : []),
+
+    ...(brand.branding?.enabled
+      ? [
+          betaZodTool({
+            name: "brand_image",
+            description:
+              "Apply brand overlays (logo, handle, page indicator) to a single image. Use for single-image posts. Returns the local path of the branded image.",
+            inputSchema: z.object({
+              imageUrl: z
+                .string()
+                .nullable()
+                .describe("URL or local path to the source image. null for text-card mode."),
+              textOverlay: z
+                .string()
+                .nullable()
+                .describe("Text to overlay on the image. null for no text."),
+              textPosition: z
+                .enum(["top", "center", "bottom"])
+                .default("center")
+                .describe("Position of text overlay"),
+              isThumbnail: z
+                .boolean()
+                .default(false)
+                .describe("Use larger/bolder text for thumbnail slides"),
+              pageNumber: z
+                .number()
+                .nullable()
+                .default(null)
+                .describe("Page number for indicator (null = no indicator)"),
+              totalPages: z
+                .number()
+                .nullable()
+                .default(null)
+                .describe("Total pages for indicator"),
+              backgroundColor: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Background color hex for text cards (e.g. '#1a1a2e')"),
+            }),
+            run: async (input) => {
+              const outputPath = await brandImage({
+                imageSource: input.imageUrl,
+                textOverlay: input.textOverlay,
+                textPosition: input.textPosition,
+                isThumbnail: input.isThumbnail,
+                pageNumber: input.pageNumber,
+                totalPages: input.totalPages,
+                backgroundColor: input.backgroundColor,
+                branding: brand.branding!,
+                brandDir: brand.brandDir,
+                instagramHandle: brand.instagramHandle ?? "",
+              });
+              return `Branded image saved to: ${outputPath}`;
+            },
+          }),
+          betaZodTool({
+            name: "brand_carousel",
+            description:
+              "Apply brand overlays to multiple slides for a carousel post. Auto-numbers pages and adds swipe arrows. Returns local paths of all branded images.",
+            inputSchema: z.object({
+              slides: z.array(
+                z.object({
+                  imageUrl: z
+                    .string()
+                    .nullable()
+                    .describe("URL or local path. null for text-card."),
+                  textOverlay: z
+                    .string()
+                    .nullable()
+                    .describe("Text overlay. null for no text."),
+                  textPosition: z
+                    .enum(["top", "center", "bottom"])
+                    .default("center")
+                    .describe("Text position"),
+                  isThumbnail: z
+                    .boolean()
+                    .default(false)
+                    .describe("Thumbnail mode (bold text)"),
+                  backgroundColor: z
+                    .string()
+                    .nullable()
+                    .default(null)
+                    .describe("Background color for text cards"),
+                })
+              ).describe("Array of slide definitions"),
+            }),
+            run: async (input) => {
+              const paths = await brandCarousel(
+                input.slides.map((s) => ({
+                  imageSource: s.imageUrl,
+                  textOverlay: s.textOverlay,
+                  textPosition: s.textPosition,
+                  isThumbnail: s.isThumbnail,
+                  backgroundColor: s.backgroundColor,
+                })),
+                brand.branding!,
+                brand.brandDir,
+                brand.instagramHandle ?? ""
+              );
+              return `Branded ${paths.length} slides:\n${paths.map((p, i) => `  Slide ${i + 1}: ${p}`).join("\n")}`;
+            },
+          }),
+        ]
+      : []),
 
     betaZodTool({
       name: "send_notification",
@@ -153,7 +285,8 @@ export async function runAgent(
 
   console.log(`[Agent] Starting daily run for ${brand.name}...`);
 
-  const response = await client.beta.messages.toolRunner({
+  // toolRunner returns a thenable — awaiting it gives the final BetaMessage directly
+  const finalMessage = await client.beta.messages.toolRunner({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
     thinking: { type: "adaptive" },
@@ -165,11 +298,13 @@ export async function runAgent(
       },
     ],
     tools,
+    max_iterations: 20,
   });
 
-  const finalMessage = response.getFinalMessage();
   const textBlock = finalMessage.content.find((b) => b.type === "text");
-  console.log(
-    `[Agent] Run complete. Final message: ${textBlock ? (textBlock as { text: string }).text.slice(0, 200) : "(no text)"}`
-  );
+  if (textBlock && textBlock.type === "text") {
+    console.log(`[Agent] Run complete. Final message: ${textBlock.text.slice(0, 200)}`);
+  } else {
+    console.log("[Agent] Run complete. (no text in final message)");
+  }
 }
