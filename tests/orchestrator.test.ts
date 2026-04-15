@@ -13,24 +13,25 @@ const mockBrand: BrandConfig = {
   competitors: [{ name: "Competitor A", website: "https://a.com" }],
   keywords: ["test"],
   tone: "Professional",
-  instagram: { accountId: "123", accessToken: "abc" },
   postingSchedule: { frequency: "daily", preferredTime: "10:00" },
+  brandDir: "/tmp",
 };
 
 describe("buildTools", () => {
-  it("returns an array of 6 tool definitions", () => {
+  it("returns 6 tools without promptBankPath", () => {
     const db = createDatabase(":memory:");
     const tools = buildTools(mockBrand, db);
     expect(tools).toHaveLength(6);
+    expect(tools.map((t) => t.name)).not.toContain("browse_prompt_bank");
+    db.close();
+  });
 
-    const names = tools.map((t) => t.name);
-    expect(names).toContain("scrape_competitor");
-    expect(names).toContain("search_trends");
-    expect(names).toContain("get_recent_posts");
-    expect(names).toContain("get_post_performance");
-    expect(names).toContain("schedule_post");
-    expect(names).toContain("send_notification");
-
+  it("returns 7 tools with promptBankPath", () => {
+    const db = createDatabase(":memory:");
+    const brandWithBank = { ...mockBrand, promptBankPath: "/tmp/prompts.json" };
+    const tools = buildTools(brandWithBank, db);
+    expect(tools).toHaveLength(7);
+    expect(tools.map((t) => t.name)).toContain("browse_prompt_bank");
     db.close();
   });
 });

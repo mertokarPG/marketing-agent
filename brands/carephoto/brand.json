@@ -27,12 +27,24 @@
     "AI photo studio"
   ],
   "tone": "Friendly, confident, slightly playful. Emphasize transformation and results. Speak to people who want to look their best online — dating profiles, LinkedIn, social media.",
-  "instagram": {
-    "accountId": "",
-    "accessToken": ""
-  },
   "postingSchedule": {
     "frequency": "daily",
     "preferredTime": "10:00"
+  },
+  "promptBankPath": "/Users/mertokar/Documents/GitHub/lula/public/promptbank/prompts.json",
+  "instagramHandle": "careaiphotoeditor",
+  "branding": {
+    "enabled": true,
+    "logoPath": "assets/logo.png",
+    "showLogo": true,
+    "showHandle": true,
+    "showPageIndicator": true,
+    "showSwipeArrow": true
+  },
+  "carousel": {
+    "preferCarousel": true,
+    "frequency": 0.4,
+    "maxSlides": 10,
+    "minSlides": 2
   }
 }

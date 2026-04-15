@@ -13,8 +13,8 @@ const mockBrand: BrandConfig = {
   competitors: [{ name: "Competitor A", website: "https://a.com" }],
   keywords: ["test"],
   tone: "Professional",
-  instagram: { accountId: "123", accessToken: "abc" },
   postingSchedule: { frequency: "daily", preferredTime: "10:00" },
+  brandDir: "/tmp",
 };
 
 describe("dry run", () => {
