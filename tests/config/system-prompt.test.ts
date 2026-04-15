@@ -45,6 +45,45 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt(mockBrand);
     expect(prompt).toContain("Professional and direct");
   });
+
+  it("includes carousel strategy when carousel config present", () => {
+    const brandWithCarousel: BrandConfig = {
+      ...mockBrand,
+      carousel: {
+        preferCarousel: true,
+        frequency: 0.4,
+        maxSlides: 10,
+        minSlides: 2,
+      },
+    };
+    const prompt = buildSystemPrompt(brandWithCarousel);
+    expect(prompt).toContain("Carousel vs Single Image");
+    expect(prompt).toContain("40%");
+  });
+
+  it("includes thumbnail strategy when branding enabled", () => {
+    const brandWithBranding: BrandConfig = {
+      ...mockBrand,
+      instagramHandle: "testbrand",
+      branding: {
+        enabled: true,
+        logoPath: "assets/logo.png",
+        showLogo: true,
+        showHandle: true,
+        showPageIndicator: true,
+        showSwipeArrow: true,
+      },
+    };
+    const prompt = buildSystemPrompt(brandWithBranding);
+    expect(prompt).toContain("Thumbnail");
+    expect(prompt).toContain("brand_image");
+  });
+
+  it("does not include branding instructions when branding disabled", () => {
+    const prompt = buildSystemPrompt(mockBrand);
+    expect(prompt).not.toContain("brand_image");
+    expect(prompt).not.toContain("brand_carousel");
+  });
 });
 
 describe("loadBrand", () => {
