@@ -1,27 +1,35 @@
+import "dotenv/config";
 import cron from "node-cron";
 import path from "path";
 import { loadBrand } from "./config/load-brand.js";
 import { createDatabase } from "./db/schema.js";
 import { runAgent } from "./orchestrator.js";
 import { sendNotification } from "./tools/notify.js";
+import { detectTunnelUrl } from "./utils/detect-tunnel.js";
 
 const brandId = process.env.BRAND ?? "carephoto";
 const brandsDir = path.resolve("brands");
 const dbPath = path.resolve("marketing-agent.db");
 
+// Auto-detect Cloudflare quick tunnel URL if not set manually
+if (!process.env.POSTIZ_TUNNEL_URL) {
+  detectTunnelUrl();
+}
+
 async function dailyRun(): Promise<void> {
+  let db;
   try {
     const brand = loadBrand(brandId, brandsDir);
-    const db = createDatabase(dbPath);
+    db = createDatabase(dbPath);
 
     await runAgent(brand, db);
-
-    db.close();
   } catch (error) {
     const errorMsg =
       error instanceof Error ? error.message : String(error);
     console.error(`[Agent] Fatal error: ${errorMsg}`);
     await sendNotification("Agent Error", `Fatal error during daily run: ${errorMsg}`);
+  } finally {
+    db?.close();
   }
 }
 

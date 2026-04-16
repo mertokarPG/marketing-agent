@@ -6,4 +6,6 @@ dist/
 *.db-shm
 .DS_Store
 .superpowers/
+.claude/
+.obsidian/
 tmp/

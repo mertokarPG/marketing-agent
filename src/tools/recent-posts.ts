@@ -15,7 +15,7 @@ export function getRecentPostsTool(
   const formatted = posts
     .map(
       (p) =>
-        `[${p.created_at}] Theme: ${p.content_theme ?? "none"}\nCaption: ${p.caption}\nHashtags: ${p.hashtags.join(", ")}`
+        `[${p.created_at}] Theme: ${p.content_theme ?? "none"}\nCaption: ${p.caption}\nImage: ${p.image_url ?? "none"}\nHashtags: ${p.hashtags.join(", ")}`
     )
     .join("\n\n");
 

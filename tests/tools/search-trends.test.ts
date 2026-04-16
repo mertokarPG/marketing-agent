@@ -1,5 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { searchTrends } from "../../src/tools/search-trends.js";
+
+beforeEach(() => {
+  vi.stubEnv("FIRECRAWL_API_KEY", "test-key");
+});
 
 vi.mock("@mendable/firecrawl-js", () => ({
   default: class {

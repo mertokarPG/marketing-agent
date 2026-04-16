@@ -1,3 +1,6 @@
+import fs from "fs";
+import path from "path";
+
 interface SchedulePostInput {
   caption: string;
   hashtags: string[];
@@ -60,6 +63,35 @@ async function uploadImageFromUrl(url: string): Promise<PostizMedia> {
   return (await res.json()) as PostizMedia;
 }
 
+async function uploadImageFile(filePath: string): Promise<PostizMedia> {
+  const apiKey = process.env.POSTIZ_API_KEY!;
+  const baseUrl =
+    process.env.POSTIZ_BASE_URL ?? "https://app.postiz.com/api/public/v1";
+
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileName = path.basename(filePath);
+  const blob = new Blob([fileBuffer], { type: "image/png" });
+
+  const form = new FormData();
+  form.append("file", blob, fileName);
+
+  const res = await fetch(`${baseUrl}/upload`, {
+    method: "POST",
+    headers: { Authorization: apiKey },
+    body: form,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to upload file (${res.status}): ${await res.text()}`);
+  }
+
+  return (await res.json()) as PostizMedia;
+}
+
+function isLocalPath(source: string): boolean {
+  return !source.startsWith("http://") && !source.startsWith("https://");
+}
+
 export async function schedulePost(input: SchedulePostInput): Promise<string> {
   const apiKey = process.env.POSTIZ_API_KEY;
 
@@ -71,12 +103,23 @@ export async function schedulePost(input: SchedulePostInput): Promise<string> {
     // 1. Get Instagram integration ID
     const integrationId = await getInstagramIntegrationId();
 
-    // 2. Upload all images (registers with Postiz) and keep the original public URLs
-    //    for Instagram — self-hosted Postiz returns localhost paths that Instagram can't reach
+    // 2. Upload all images — local files go via multipart, URLs via upload-from-url
+    //    For URLs: keep the original public URL as path (self-hosted Postiz returns localhost paths)
+    //    For files: Postiz path is rewritten to the tunnel URL so Instagram can reach it
+    const tunnelUrl = process.env.POSTIZ_TUNNEL_URL;
     const mediaItems: Array<{ id: string; path: string }> = [];
-    for (const imageUrl of input.images) {
-      const media = await uploadImageFromUrl(imageUrl);
-      mediaItems.push({ id: media.id, path: imageUrl });
+    for (const imageSource of input.images) {
+      if (isLocalPath(imageSource)) {
+        const media = await uploadImageFile(imageSource);
+        // Rewrite localhost path to tunnel URL for Instagram access
+        const publicPath = tunnelUrl
+          ? media.path.replace(/http:\/\/localhost:\d+/, tunnelUrl)
+          : media.path;
+        mediaItems.push({ id: media.id, path: publicPath });
+      } else {
+        const media = await uploadImageFromUrl(imageSource);
+        mediaItems.push({ id: media.id, path: imageSource });
+      }
     }
 
     // 3. Build caption with hashtags
@@ -100,7 +143,7 @@ export async function schedulePost(input: SchedulePostInput): Promise<string> {
               image: mediaItems,
             },
           ],
-          settings: { post_type: mediaItems.length > 1 ? "carousel" : "post" },
+          settings: { post_type: "post" },
         },
       ],
     };

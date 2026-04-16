@@ -44,7 +44,7 @@ Content strategy:
 - Keep captions authentic to the brand voice
 
 Posting guidelines:
-- Post daily unless there's a good reason not to
+- You may post up to 5 times per day — do NOT skip posting just because a post already exists today
 - Use 20-30 relevant hashtags per post
 - Always explain your reasoning in the content calendar
 - When scheduling a post, always record the entry in the content calendar first`;

@@ -1,5 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { scrapeCompetitor } from "../../src/tools/scrape-competitor.js";
+
+beforeEach(() => {
+  vi.stubEnv("FIRECRAWL_API_KEY", "test-key");
+});
 
 // Mock Firecrawl
 vi.mock("@mendable/firecrawl-js", () => ({

@@ -35,7 +35,10 @@
   "instagramHandle": "careaiphotoeditor",
   "branding": {
     "enabled": true,
-    "logoPath": "assets/logo.png",
+    "logoPath": "assets/v4Logo_white_nobackground.png",
+    "fontPath": "assets/sf-old-republic.regular.ttf",
+    "fontFamily": "SF Old Republic",
+    "instagramIconPath": "assets/instagram-logo-no-background.png",
     "showLogo": true,
     "showHandle": true,
     "showPageIndicator": true,

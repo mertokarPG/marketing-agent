@@ -1,9 +1,13 @@
 import FirecrawlApp from "@mendable/firecrawl-js";
 
 export async function searchTrends(keywords: string[]): Promise<string> {
+  if (!process.env.FIRECRAWL_API_KEY) {
+    return `Firecrawl API key not configured. Cannot search trends for: ${keywords.join(", ")}`;
+  }
+
   try {
     const firecrawl = new FirecrawlApp({
-      apiKey: process.env.FIRECRAWL_API_KEY ?? "",
+      apiKey: process.env.FIRECRAWL_API_KEY,
     });
 
     const query = keywords.join(" OR ");

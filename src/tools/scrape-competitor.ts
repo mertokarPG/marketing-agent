@@ -4,9 +4,13 @@ export async function scrapeCompetitor(
   name: string,
   url: string
 ): Promise<string> {
+  if (!process.env.FIRECRAWL_API_KEY) {
+    return `Firecrawl API key not configured. Cannot scrape ${name} at ${url}.`;
+  }
+
   try {
     const firecrawl = new FirecrawlApp({
-      apiKey: process.env.FIRECRAWL_API_KEY ?? "",
+      apiKey: process.env.FIRECRAWL_API_KEY,
     });
 
     const result = await firecrawl.scrapeUrl(url, {

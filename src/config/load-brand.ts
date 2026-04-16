@@ -11,6 +11,9 @@ const CompetitorSchema = z.object({
 const BrandingSchema = z.object({
   enabled: z.boolean(),
   logoPath: z.string(),
+  fontPath: z.string().optional(),
+  fontFamily: z.string().optional(),
+  instagramIconPath: z.string().optional(),
   showLogo: z.boolean().default(true),
   showHandle: z.boolean().default(true),
   showPageIndicator: z.boolean().default(true),

@@ -11,6 +11,9 @@ const LOGO_SIZE = 72;
 interface BrandingConfig {
   enabled: boolean;
   logoPath: string;
+  fontPath?: string;
+  fontFamily?: string;
+  instagramIconPath?: string;
   showLogo: boolean;
   showHandle: boolean;
   showPageIndicator: boolean;
@@ -56,10 +59,48 @@ async function fetchImage(source: string): Promise<Buffer> {
   return fs.readFileSync(source);
 }
 
+function buildFontFaceSvg(fontBase64: string | null, fontFamily: string): string {
+  if (!fontBase64) return "";
+  return `<style>
+    @font-face {
+      font-family: '${fontFamily}';
+      src: url('data:font/ttf;base64,${fontBase64}');
+    }
+  </style>`;
+}
+
+function buildGradientScrimSvg(position: "top" | "center" | "bottom"): Buffer {
+  let gradient: string;
+  if (position === "top") {
+    gradient = `<linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="black" stop-opacity="0.7"/>
+        <stop offset="60%" stop-color="black" stop-opacity="0"/>
+      </linearGradient>`;
+  } else if (position === "bottom") {
+    gradient = `<linearGradient id="scrim" x1="0" y1="1" x2="0" y2="0">
+        <stop offset="0%" stop-color="black" stop-opacity="0.7"/>
+        <stop offset="60%" stop-color="black" stop-opacity="0"/>
+      </linearGradient>`;
+  } else {
+    gradient = `<radialGradient id="scrim" cx="50%" cy="50%" r="70%">
+        <stop offset="0%" stop-color="black" stop-opacity="0"/>
+        <stop offset="100%" stop-color="black" stop-opacity="0.5"/>
+      </radialGradient>`;
+  }
+
+  const svg = `<svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <defs>${gradient}</defs>
+    <rect x="0" y="0" width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" fill="url(#scrim)"/>
+  </svg>`;
+  return Buffer.from(svg);
+}
+
 function buildTextOverlaySvg(
   text: string,
   position: "top" | "center" | "bottom",
-  isThumbnail: boolean
+  isThumbnail: boolean,
+  fontFamily: string,
+  fontBase64: string | null
 ): Buffer {
   const fontSize = isThumbnail ? 64 : 42;
   const fontWeight = isThumbnail ? 800 : 600;
@@ -81,7 +122,7 @@ function buildTextOverlaySvg(
     .map(
       (line, i) =>
         `<text x="${PADDING + 10}" y="${yStart + i * lineHeight}"
-          font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}"
+          font-family="'${fontFamily}', Arial, Helvetica, sans-serif" font-size="${fontSize}"
           font-weight="${fontWeight}" fill="white"
           filter="url(#shadow)">${escapeXml(line)}</text>`
     )
@@ -89,6 +130,7 @@ function buildTextOverlaySvg(
 
   const svg = `<svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
     <defs>
+      ${buildFontFaceSvg(fontBase64, fontFamily)}
       <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
         <feDropShadow dx="0" dy="3" stdDeviation="${isThumbnail ? 8 : 5}" flood-color="rgba(0,0,0,0.7)"/>
       </filter>
@@ -99,12 +141,13 @@ function buildTextOverlaySvg(
   return Buffer.from(svg);
 }
 
-function buildPageIndicatorSvg(page: number, total: number): Buffer {
+function buildPageIndicatorSvg(page: number, total: number, fontFamily: string, fontBase64: string | null): Buffer {
   const text = `${page}/${total}`;
   const svg = `<svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <defs>${buildFontFaceSvg(fontBase64, fontFamily)}</defs>
     <rect x="${CANVAS_WIDTH - PADDING - 80}" y="${PADDING}" width="80" height="36" rx="18" fill="rgba(0,0,0,0.6)"/>
     <text x="${CANVAS_WIDTH - PADDING - 40}" y="${PADDING + 24}"
-      font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="600"
+      font-family="'${fontFamily}', Arial, Helvetica, sans-serif" font-size="16" font-weight="600"
       fill="white" text-anchor="middle">${text}</text>
   </svg>`;
   return Buffer.from(svg);
@@ -120,14 +163,22 @@ function buildSwipeArrowSvg(): Buffer {
   return Buffer.from(svg);
 }
 
-function buildHandleBarSvg(handle: string): Buffer {
+function buildHandleBarSvg(handle: string, fontFamily: string, fontBase64: string | null, igIconBase64: string | null): Buffer {
   const barHeight = 52;
   const barY = CANVAS_HEIGHT - barHeight;
+  const iconSize = 24;
+  const iconY = barY + 14;
+
+  const igIcon = igIconBase64
+    ? `<image x="${PADDING}" y="${iconY}" width="${iconSize}" height="${iconSize}" href="data:image/png;base64,${igIconBase64}"/>`
+    : `<rect x="${PADDING}" y="${iconY}" width="${iconSize}" height="${iconSize}" rx="6" fill="none" stroke="white" stroke-width="2"/>
+       <text x="${PADDING + 12}" y="${iconY + 18}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">IG</text>`;
+
   const svg = `<svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <defs>${buildFontFaceSvg(fontBase64, fontFamily)}</defs>
     <rect x="0" y="${barY}" width="${CANVAS_WIDTH}" height="${barHeight}" fill="rgba(0,0,0,0.5)"/>
-    <rect x="${PADDING}" y="${barY + 14}" width="24" height="24" rx="6" fill="none" stroke="white" stroke-width="2"/>
-    <text x="${PADDING + 12}" y="${barY + 32}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">IG</text>
-    <text x="${PADDING + 36}" y="${barY + 33}" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="500" fill="white">@${escapeXml(handle)}</text>
+    ${igIcon}
+    <text x="${PADDING + 36}" y="${barY + 33}" font-family="'${fontFamily}', Arial, Helvetica, sans-serif" font-size="16" font-weight="500" fill="white">@${escapeXml(handle)}</text>
   </svg>`;
   return Buffer.from(svg);
 }
@@ -145,6 +196,25 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
   ensureTmpDir();
 
   const { branding } = input;
+
+  // Load custom font as base64 for SVG embedding
+  const fontFamily = branding.fontFamily ?? "Arial";
+  let fontBase64: string | null = null;
+  if (branding.fontPath) {
+    const fontAbsPath = path.resolve(input.brandDir, branding.fontPath);
+    if (fs.existsSync(fontAbsPath)) {
+      fontBase64 = fs.readFileSync(fontAbsPath).toString("base64");
+    }
+  }
+
+  // Load IG icon as base64 for SVG embedding
+  let igIconBase64: string | null = null;
+  if (branding.instagramIconPath) {
+    const iconAbsPath = path.resolve(input.brandDir, branding.instagramIconPath);
+    if (fs.existsSync(iconAbsPath)) {
+      igIconBase64 = fs.readFileSync(iconAbsPath).toString("base64");
+    }
+  }
 
   // 1. Create or load base image
   let base: sharp.Sharp;
@@ -172,20 +242,31 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
   const baseBuffer = await base.png().toBuffer();
   const composites: OverlayOptions[] = [];
 
-  // 2. Text overlay
+  // 2. Gradient scrim behind text for readability
+  if (input.textOverlay) {
+    composites.push({
+      input: buildGradientScrimSvg(input.textPosition),
+      top: 0,
+      left: 0,
+    });
+  }
+
+  // 3. Text overlay
   if (input.textOverlay) {
     composites.push({
       input: buildTextOverlaySvg(
         input.textOverlay,
         input.textPosition,
-        input.isThumbnail
+        input.isThumbnail,
+        fontFamily,
+        fontBase64
       ),
       top: 0,
       left: 0,
     });
   }
 
-  // 3. Logo
+  // 4. Logo
   if (branding.showLogo) {
     const logoAbsPath = path.resolve(input.brandDir, branding.logoPath);
     if (fs.existsSync(logoAbsPath)) {
@@ -197,16 +278,16 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
     }
   }
 
-  // 4. Page indicator
+  // 5. Page indicator
   if (branding.showPageIndicator && input.pageNumber !== null && input.totalPages !== null) {
     composites.push({
-      input: buildPageIndicatorSvg(input.pageNumber, input.totalPages),
+      input: buildPageIndicatorSvg(input.pageNumber, input.totalPages, fontFamily, fontBase64),
       top: 0,
       left: 0,
     });
   }
 
-  // 5. Swipe arrow (only for carousel slides, not the last one)
+  // 6. Swipe arrow (only for carousel slides, not the last one)
   if (
     branding.showSwipeArrow &&
     input.pageNumber !== null &&
@@ -220,16 +301,16 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
     });
   }
 
-  // 6. Handle bar
+  // 7. Handle bar
   if (branding.showHandle && input.instagramHandle) {
     composites.push({
-      input: buildHandleBarSvg(input.instagramHandle),
+      input: buildHandleBarSvg(input.instagramHandle, fontFamily, fontBase64, igIconBase64),
       top: 0,
       left: 0,
     });
   }
 
-  // 7. Composite and save
+  // 8. Composite and save
   const outputPath = path.join(TMP_DIR, `${randomUUID()}.png`);
   await sharp(baseBuffer).composite(composites).png().toFile(outputPath);
 
