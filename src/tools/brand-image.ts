@@ -2,11 +2,24 @@ import sharp, { OverlayOptions } from "sharp";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
+import {
+  renderGradientPng,
+  isGradientMood,
+  isMoodDark,
+  pickRandomMood,
+  type GradientMood,
+} from "../lib/gradient.js";
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1350;
 const PADDING = 40;
 const LOGO_SIZE = 72;
+
+interface BrandColors {
+  primary: string;
+  secondary: string;
+  accent: string;
+}
 
 interface BrandingConfig {
   enabled: boolean;
@@ -18,6 +31,7 @@ interface BrandingConfig {
   showHandle: boolean;
   showPageIndicator: boolean;
   showSwipeArrow: boolean;
+  colors?: BrandColors;
 }
 
 interface BrandImageInput {
@@ -28,6 +42,7 @@ interface BrandImageInput {
   pageNumber: number | null;
   totalPages: number | null;
   backgroundColor: string | null;
+  background: string | null; // gradient mood name, 'gradient-random', or null (uses backgroundColor/brand defaults)
   branding: BrandingConfig;
   brandDir: string;
   instagramHandle: string;
@@ -95,18 +110,47 @@ function buildGradientScrimSvg(position: "top" | "center" | "bottom"): Buffer {
   return Buffer.from(svg);
 }
 
+function wrapText(text: string, fontSize: number, maxWidth: number): string[] {
+  const charWidth = fontSize * 0.52;
+  const maxChars = Math.floor(maxWidth / charWidth);
+
+  const wrapped: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    if (paragraph.length <= maxChars) {
+      wrapped.push(paragraph);
+      continue;
+    }
+    const words = paragraph.split(" ");
+    let currentLine = "";
+    for (const word of words) {
+      const test = currentLine ? `${currentLine} ${word}` : word;
+      if (test.length > maxChars && currentLine) {
+        wrapped.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = test;
+      }
+    }
+    if (currentLine) wrapped.push(currentLine);
+  }
+  return wrapped;
+}
+
 function buildTextOverlaySvg(
   text: string,
   position: "top" | "center" | "bottom",
   isThumbnail: boolean,
   fontFamily: string,
-  fontBase64: string | null
+  fontBase64: string | null,
+  textColor: string,
+  shadowColor: string
 ): Buffer {
   const fontSize = isThumbnail ? 64 : 42;
   const fontWeight = isThumbnail ? 800 : 600;
   const lineHeight = fontSize * 1.3;
+  const usableWidth = CANVAS_WIDTH - (PADDING + 10) * 2;
 
-  const lines = text.split("\n");
+  const lines = wrapText(text, fontSize, usableWidth);
   const totalTextHeight = lines.length * lineHeight;
 
   let yStart: number;
@@ -123,7 +167,7 @@ function buildTextOverlaySvg(
       (line, i) =>
         `<text x="${PADDING + 10}" y="${yStart + i * lineHeight}"
           font-family="'${fontFamily}', Arial, Helvetica, sans-serif" font-size="${fontSize}"
-          font-weight="${fontWeight}" fill="white"
+          font-weight="${fontWeight}" fill="${textColor}"
           filter="url(#shadow)">${escapeXml(line)}</text>`
     )
     .join("\n");
@@ -132,7 +176,7 @@ function buildTextOverlaySvg(
     <defs>
       ${buildFontFaceSvg(fontBase64, fontFamily)}
       <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-        <feDropShadow dx="0" dy="3" stdDeviation="${isThumbnail ? 8 : 5}" flood-color="rgba(0,0,0,0.7)"/>
+        <feDropShadow dx="0" dy="3" stdDeviation="${isThumbnail ? 8 : 5}" flood-color="${shadowColor}"/>
       </filter>
     </defs>
     ${textLines}
@@ -164,21 +208,21 @@ function buildSwipeArrowSvg(): Buffer {
 }
 
 function buildHandleBarSvg(handle: string, fontFamily: string, fontBase64: string | null, igIconBase64: string | null): Buffer {
-  const barHeight = 52;
+  const barHeight = 72;
   const barY = CANVAS_HEIGHT - barHeight;
-  const iconSize = 24;
-  const iconY = barY + 14;
+  const iconSize = 32;
+  const iconY = barY + 20;
 
   const igIcon = igIconBase64
     ? `<image x="${PADDING}" y="${iconY}" width="${iconSize}" height="${iconSize}" href="data:image/png;base64,${igIconBase64}"/>`
-    : `<rect x="${PADDING}" y="${iconY}" width="${iconSize}" height="${iconSize}" rx="6" fill="none" stroke="white" stroke-width="2"/>
-       <text x="${PADDING + 12}" y="${iconY + 18}" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">IG</text>`;
+    : `<rect x="${PADDING}" y="${iconY}" width="${iconSize}" height="${iconSize}" rx="8" fill="none" stroke="white" stroke-width="2"/>
+       <text x="${PADDING + 16}" y="${iconY + 23}" font-family="Arial" font-size="14" font-weight="bold" fill="white" text-anchor="middle">IG</text>`;
 
   const svg = `<svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
     <defs>${buildFontFaceSvg(fontBase64, fontFamily)}</defs>
     <rect x="0" y="${barY}" width="${CANVAS_WIDTH}" height="${barHeight}" fill="rgba(0,0,0,0.5)"/>
     ${igIcon}
-    <text x="${PADDING + 36}" y="${barY + 33}" font-family="'${fontFamily}', Arial, Helvetica, sans-serif" font-size="16" font-weight="500" fill="white">@${escapeXml(handle)}</text>
+    <text x="${PADDING + 44}" y="${barY + 45}" font-family="'${fontFamily}', Arial, Helvetica, sans-serif" font-size="22" font-weight="600" fill="white">@${escapeXml(handle)}</text>
   </svg>`;
   return Buffer.from(svg);
 }
@@ -216,26 +260,37 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
     }
   }
 
-  // 1. Create or load base image
+  // 1. Create or load base image. Track whether background is dark so text contrast adapts.
   let base: sharp.Sharp;
+  let bgIsDark = true; // default — photo slides usually benefit from white text on dark scrim
   if (input.imageSource) {
     const buf = await fetchImage(input.imageSource);
     base = sharp(buf).resize(CANVAS_WIDTH, CANVAS_HEIGHT, {
       fit: "cover",
       position: "centre",
     });
+  } else if (input.background && (isGradientMood(input.background) || input.background === "gradient-random")) {
+    const mood: GradientMood =
+      input.background === "gradient-random"
+        ? pickRandomMood()
+        : (input.background as GradientMood);
+    const gradientPng = await renderGradientPng(mood, CANVAS_WIDTH, CANVAS_HEIGHT);
+    base = sharp(gradientPng);
+    bgIsDark = isMoodDark(mood);
   } else {
-    const bg = input.backgroundColor
-      ? hexToRgb(input.backgroundColor)
-      : { r: 26, g: 26, b: 46 };
+    const colors = branding.colors ?? { primary: "#6C3CE1", secondary: "#1a1a2e", accent: "#E14ECE" };
+    const bgColor = input.backgroundColor ?? colors.secondary;
+    const rgb = hexToRgb(bgColor);
     base = sharp({
       create: {
         width: CANVAS_WIDTH,
         height: CANVAS_HEIGHT,
-        channels: 3,
-        background: bg,
+        channels: 4,
+        background: { r: rgb.r, g: rgb.g, b: rgb.b, alpha: 1 },
       },
     });
+    // Estimate dark vs light from the chosen bg color's luminance
+    bgIsDark = (rgb.r * 0.299 + rgb.g * 0.587 + rgb.b * 0.114) < 140;
   }
 
   // Convert to png for compositing
@@ -251,15 +306,19 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
     });
   }
 
-  // 3. Text overlay
+  // 3. Text overlay. Color + shadow adapt to background lightness for legibility.
   if (input.textOverlay) {
+    const textColor = bgIsDark ? "white" : "#111111";
+    const shadowColor = bgIsDark ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.5)";
     composites.push({
       input: buildTextOverlaySvg(
         input.textOverlay,
         input.textPosition,
         input.isThumbnail,
         fontFamily,
-        fontBase64
+        fontBase64,
+        textColor,
+        shadowColor
       ),
       top: 0,
       left: 0,
@@ -324,6 +383,7 @@ export async function brandCarousel(
     textPosition: "top" | "center" | "bottom";
     isThumbnail: boolean;
     backgroundColor: string | null;
+    background: string | null;
   }>,
   branding: BrandingConfig,
   brandDir: string,
@@ -342,6 +402,7 @@ export async function brandCarousel(
       pageNumber: totalPages > 1 ? i + 1 : null,
       totalPages: totalPages > 1 ? totalPages : null,
       backgroundColor: slide.backgroundColor,
+      background: slide.background,
       branding,
       brandDir,
       instagramHandle,

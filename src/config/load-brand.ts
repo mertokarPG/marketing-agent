@@ -8,6 +8,12 @@ const CompetitorSchema = z.object({
   website: z.string().optional(),
 });
 
+const BrandColorsSchema = z.object({
+  primary: z.string().default("#6C3CE1"),
+  secondary: z.string().default("#1a1a2e"),
+  accent: z.string().default("#E14ECE"),
+});
+
 const BrandingSchema = z.object({
   enabled: z.boolean(),
   logoPath: z.string(),
@@ -18,6 +24,8 @@ const BrandingSchema = z.object({
   showHandle: z.boolean().default(true),
   showPageIndicator: z.boolean().default(true),
   showSwipeArrow: z.boolean().default(true),
+  colors: BrandColorsSchema.optional(),
+  accentPalette: z.array(z.string()).optional(),
 });
 
 const CarouselSchema = z.object({

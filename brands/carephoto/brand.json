@@ -42,7 +42,13 @@
     "showLogo": true,
     "showHandle": true,
     "showPageIndicator": true,
-    "showSwipeArrow": true
+    "showSwipeArrow": true,
+    "colors": {
+      "primary": "#6C3CE1",
+      "secondary": "#1a1a2e",
+      "accent": "#E14ECE"
+    },
+    "accentPalette": ["#c1272d", "#e14ece", "#6c3ce1", "#2d6cff", "#11a870", "#ff7a1a"]
   },
   "carousel": {
     "preferCarousel": true,

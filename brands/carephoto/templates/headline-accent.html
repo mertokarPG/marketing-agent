@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {
+    font-family: 'Instrument Serif';
+    font-style: normal;
+    src: url('__FONT_SERIF_REGULAR__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Instrument Serif';
+    font-style: italic;
+    src: url('__FONT_SERIF_ITALIC__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Geist';
+    font-weight: 400;
+    src: url('__FONT_SANS_REGULAR__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Geist';
+    font-weight: 700;
+    src: url('__FONT_SANS_BOLD__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Geist';
+    font-weight: 900;
+    src: url('__FONT_SANS_BLACK__') format('truetype');
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    background: #f4efe8;
+    color: __TEXT_COLOR__;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    padding: 72px 80px;
+    overflow: hidden;
+  }
+
+  .bg-layer { position: absolute; inset: 0; z-index: 0; }
+
+  .grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, __GRID_COLOR__ 1px, transparent 1px),
+      linear-gradient(to bottom, __GRID_COLOR__ 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .kicker {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-top: 80px;
+    margin-bottom: 32px;
+    display: inline-block;
+    border-top: 3px solid var(--accent);
+    padding-top: 14px;
+  }
+
+  .headline {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 172px;
+    line-height: 0.95;
+    letter-spacing: -0.015em;
+    color: __TEXT_COLOR__;
+    margin-bottom: 32px;
+    max-width: 880px;
+  }
+
+  .headline .accent {
+    font-style: italic;
+    color: var(--accent);
+    display: inline-block;
+    position: relative;
+  }
+
+  .headline .accent::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 8px;
+    height: 4px;
+    background: var(--accent);
+    opacity: 0.5;
+  }
+
+  .subtitle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 400;
+    font-size: 32px;
+    line-height: 1.35;
+    color: __SUBTITLE_COLOR__;
+    max-width: 760px;
+    margin-top: 24px;
+  }
+
+  .decorative-char {
+    position: absolute;
+    right: -60px;
+    bottom: 80px;
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 900px;
+    line-height: 1;
+    color: var(--accent);
+    opacity: 0.28;
+    pointer-events: none;
+    user-select: none;
+    z-index: 0;
+  }
+
+  .kicker, .headline, .subtitle, .sticker, .footer { position: relative; z-index: 2; }
+  .decorative-char { z-index: 1; }
+
+  .sticker {
+    position: absolute;
+    right: 120px;
+    top: 540px;
+    background: #2d6cff;
+    color: white;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    padding: 14px 26px;
+    border-radius: 24px;
+    transform: rotate(-4deg);
+    box-shadow: 0 8px 24px rgba(45, 108, 255, 0.25);
+  }
+
+  .sticker::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    bottom: -10px;
+    width: 20px;
+    height: 20px;
+    background: #2d6cff;
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+
+  .footer {
+    position: absolute;
+    bottom: 48px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: __TEXT_COLOR__;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .handle img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .logo {
+    height: 48px;
+    width: auto;
+    filter: __LOGO_FILTER__;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 48px;
+    right: 80px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: __TEXT_COLOR__;
+    background: __PAGE_INDICATOR_BG__;
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 2;
+  }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="bg-layer">__BG_LAYER__</div>
+  __GRID__
+
+  __PAGE_INDICATOR__
+
+  __DECORATIVE_CHAR__
+
+  __KICKER__
+
+  <h1 class="headline">__HEADLINE__</h1>
+
+  __SUBTITLE__
+
+  __STICKER__
+
+  <div class="footer">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+</div>
+</body>
+</html>

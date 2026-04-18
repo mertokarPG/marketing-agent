@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    background: #f4efe8;
+    color: __TEXT_COLOR__;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+  }
+
+  .bg-layer { position: absolute; inset: 0; z-index: 0; }
+
+  /* Top half: muted, "before" vibe — semi-transparent dark scrim over the gradient */
+  .half-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    z-index: 2;
+    padding: 100px 80px 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .half-top::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    z-index: -1;
+  }
+
+  /* Bottom half: crisp, "after" vibe — the gradient pops through unfiltered */
+  .half-bottom {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    padding: 60px 80px 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* Divider with label badge in the middle */
+  .divider {
+    position: absolute;
+    top: calc(50% - 4px);
+    left: 0;
+    right: 0;
+    height: 8px;
+    background: var(--accent);
+    z-index: 3;
+  }
+
+  .arrow {
+    position: absolute;
+    top: calc(50% - 38px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 4;
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 44px;
+    color: white;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+
+  .label {
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .label-before {
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .label-after {
+    color: var(--accent);
+  }
+
+  /* headline = the BEFORE statement (top half) */
+  .headline {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 88px;
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    color: rgba(255, 255, 255, 0.85);
+    max-width: 860px;
+    text-decoration: line-through;
+    text-decoration-color: rgba(255, 255, 255, 0.4);
+    text-decoration-thickness: 4px;
+  }
+
+  .headline .accent { color: var(--accent); font-style: italic; }
+
+  /* subtitle = the AFTER statement (bottom half) */
+  .subtitle {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 100px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    color: __TEXT_COLOR__;
+    max-width: 860px;
+  }
+
+  /* kicker used as small category at very top */
+  .kicker {
+    position: absolute;
+    top: 48px;
+    left: 80px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: white;
+    z-index: 4;
+  }
+
+  .grid-overlay, .decorative-char, .sticker { display: none; }
+
+  .footer {
+    position: absolute;
+    bottom: 32px;
+    left: 80px;
+    right: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 4;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: __TEXT_COLOR__;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .handle img { width: 26px; height: 26px; }
+
+  .logo {
+    height: 44px;
+    width: auto;
+    filter: __LOGO_FILTER__;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 48px;
+    right: 80px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: white;
+    background: rgba(0,0,0,0.35);
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 4;
+  }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="bg-layer">__BG_LAYER__</div>
+
+  __PAGE_INDICATOR__
+
+  __KICKER__
+
+  <div class="half-top">
+    <div class="label label-before">Before</div>
+    <h1 class="headline">__HEADLINE__</h1>
+  </div>
+
+  <div class="divider"></div>
+  <div class="arrow">&#8595;</div>
+
+  <div class="half-bottom">
+    <div class="label label-after">After</div>
+    __SUBTITLE__
+  </div>
+
+  __DECORATIVE_CHAR__
+  __STICKER__
+
+  <div class="footer">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+</div>
+</body>
+</html>

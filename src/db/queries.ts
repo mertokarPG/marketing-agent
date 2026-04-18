@@ -8,6 +8,7 @@ interface PostInsert {
   content_theme?: string;
   posted_at?: string;
   external_post_id?: string;
+  source_images?: string[];
 }
 
 interface PostRow {
@@ -67,8 +68,8 @@ interface ContentCalendarInsert {
 
 export function insertPost(db: Database.Database, post: PostInsert): number {
   const stmt = db.prepare(`
-    INSERT INTO posts (brand_id, caption, hashtags, image_url, content_theme, posted_at, external_post_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO posts (brand_id, caption, hashtags, image_url, content_theme, posted_at, external_post_id, source_images)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     post.brand_id,
@@ -77,9 +78,29 @@ export function insertPost(db: Database.Database, post: PostInsert): number {
     post.image_url ?? null,
     post.content_theme ?? null,
     post.posted_at ?? null,
-    post.external_post_id ?? null
+    post.external_post_id ?? null,
+    JSON.stringify(post.source_images ?? [])
   );
   return Number(result.lastInsertRowid);
+}
+
+export function getUsedPromptIds(
+  db: Database.Database,
+  brandId: string
+): Set<string> {
+  const rows = db
+    .prepare(`SELECT source_images FROM posts WHERE brand_id = ?`)
+    .all(brandId) as Array<{ source_images: string }>;
+  const used = new Set<string>();
+  for (const row of rows) {
+    try {
+      const ids = JSON.parse(row.source_images) as string[];
+      for (const id of ids) used.add(id);
+    } catch {
+      // skip malformed rows
+    }
+  }
+  return used;
 }
 
 export function getRecentPosts(

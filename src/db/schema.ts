@@ -54,5 +54,33 @@ export function createDatabase(dbPath: string): Database.Database {
     );
   `);
 
+  migratePostsSourceImages(db);
+  backfillSourceImagesFromCaptions(db);
+
   return db;
+}
+
+// Migration: add source_images column if missing. Stores JSON array of prompt IDs
+// used in the post (canonical dedup identifier). Carousels may have multiple.
+function migratePostsSourceImages(db: Database.Database): void {
+  const cols = db.prepare(`PRAGMA table_info(posts)`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "source_images")) {
+    db.exec(`ALTER TABLE posts ADD COLUMN source_images TEXT NOT NULL DEFAULT '[]'`);
+  }
+}
+
+// One-time backfill: scan captions of posts with empty source_images and extract
+// "prompt #xxx" references. Single-image posts always mention the prompt ID; carousel
+// slides beyond slide 1 can't be recovered from captions and are accepted as lost.
+function backfillSourceImagesFromCaptions(db: Database.Database): void {
+  const rows = db
+    .prepare(`SELECT id, caption FROM posts WHERE source_images = '[]'`)
+    .all() as Array<{ id: number; caption: string }>;
+  const update = db.prepare(`UPDATE posts SET source_images = ? WHERE id = ?`);
+  for (const row of rows) {
+    const ids = Array.from(
+      new Set(Array.from(row.caption.matchAll(/prompt #([a-z0-9-]+)/gi)).map((m) => m[1]))
+    );
+    if (ids.length > 0) update.run(JSON.stringify(ids), row.id);
+  }
 }
