@@ -1,0 +1,18 @@
+{
+  "id": "archive",
+  "name": "Archive",
+  "description": "Masthead · print. Playfair Display + EB Garamond + Courier Prime, deep red on cream. Reads like a broadsheet newspaper or archival journal.",
+  "engine": "react-jsx",
+  "templateName": "ArchiveTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Courier+Prime:wght@400;700&display=swap",
+  "fonts": {
+    "display": "'Playfair Display', 'Times New Roman', serif",
+    "body": "'EB Garamond', 'Georgia', serif",
+    "mono": "'Courier Prime', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#f5f1e8", "ink": "#14120c", "accent": "#8a1414", "muted": "#6a6258", "rule": "#14120c" },
+    "dark":  { "bg": "#14120c", "ink": "#f5f1e8", "accent": "#e8a04a", "muted": "#988e80", "rule": "#f5f1e8" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

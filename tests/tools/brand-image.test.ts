@@ -46,6 +46,7 @@ describe("brandImage", () => {
       pageNumber: null,
       totalPages: null,
       backgroundColor: "#1a1a2e",
+      background: null,
       branding: baseBranding,
       brandDir: testBrandDir,
       instagramHandle: "testbrand",
@@ -68,6 +69,7 @@ describe("brandImage", () => {
       pageNumber: 2,
       totalPages: 5,
       backgroundColor: "#2a2a3e",
+      background: null,
       branding: baseBranding,
       brandDir: testBrandDir,
       instagramHandle: "testbrand",
@@ -89,6 +91,7 @@ describe("brandImage", () => {
       pageNumber: null,
       totalPages: null,
       backgroundColor: "#333333",
+      background: null,
       branding: { ...baseBranding, showLogo: false },
       brandDir: testBrandDir,
       instagramHandle: "testbrand",
@@ -115,6 +118,7 @@ describe("brandImage", () => {
       pageNumber: 1,
       totalPages: 3,
       backgroundColor: null,
+      background: null,
       branding: baseBranding,
       brandDir: testBrandDir,
       instagramHandle: "testbrand",
@@ -138,6 +142,7 @@ describe("brandImage", () => {
       pageNumber: 1,
       totalPages: 1,
       backgroundColor: "#000000",
+      background: null,
       branding: baseBranding,
       brandDir: testBrandDir,
       instagramHandle: "testbrand",
@@ -154,9 +159,9 @@ describe("brandCarousel", () => {
   it("brands multiple slides with auto page numbering", async () => {
     const paths = await brandCarousel(
       [
-        { imageSource: null, textOverlay: "Slide 1", textPosition: "center", isThumbnail: true, backgroundColor: "#111111" },
-        { imageSource: null, textOverlay: "Slide 2", textPosition: "center", isThumbnail: false, backgroundColor: "#222222" },
-        { imageSource: null, textOverlay: "Slide 3", textPosition: "center", isThumbnail: false, backgroundColor: "#333333" },
+        { imageSource: null, textOverlay: "Slide 1", textPosition: "center", isThumbnail: true, backgroundColor: "#111111", background: null },
+        { imageSource: null, textOverlay: "Slide 2", textPosition: "center", isThumbnail: false, backgroundColor: "#222222", background: null },
+        { imageSource: null, textOverlay: "Slide 3", textPosition: "center", isThumbnail: false, backgroundColor: "#333333", background: null },
       ],
       baseBranding,
       testBrandDir,
@@ -175,7 +180,7 @@ describe("brandCarousel", () => {
 
   it("single slide carousel has no page indicator", async () => {
     const paths = await brandCarousel(
-      [{ imageSource: null, textOverlay: "Solo", textPosition: "center", isThumbnail: false, backgroundColor: "#000000" }],
+      [{ imageSource: null, textOverlay: "Solo", textPosition: "center", isThumbnail: false, backgroundColor: "#000000", background: null }],
       baseBranding,
       testBrandDir,
       "testbrand"

@@ -47,6 +47,7 @@ export interface CarouselCoverInput {
   totalPages?: number | null;
   branding: BrandingConfig;
   brandDir: string;
+  designSystemDir: string;
   instagramHandle: string;
 }
 
@@ -153,14 +154,14 @@ function pickAccent(
 export async function renderCarouselCover(input: CarouselCoverInput): Promise<string> {
   ensureTmpDir();
 
-  const templatePath = path.resolve(input.brandDir, "templates", `${input.templateId}.html`);
+  const templatePath = path.resolve(input.designSystemDir, "templates", `${input.templateId}.html`);
   if (!fs.existsSync(templatePath)) {
-    throw new Error(`Template not found: ${input.templateId}.html in ${input.brandDir}/templates/`);
+    throw new Error(`Template not found: ${input.templateId}.html in ${input.designSystemDir}/templates/`);
   }
   let html = fs.readFileSync(templatePath, "utf-8");
 
-  // Font paths — default to carephoto layout; fall back to absolute URLs from brandDir
-  const fontsDir = path.resolve(input.brandDir, "assets/fonts");
+  // Font paths resolved from the design-system manifest's font files.
+  const fontsDir = path.resolve(input.designSystemDir, "assets/fonts");
   const fontMap: Record<string, string> = {
     __FONT_SERIF_REGULAR__: fileUrl(path.join(fontsDir, "InstrumentSerif-Regular.ttf")),
     __FONT_SERIF_ITALIC__: fileUrl(path.join(fontsDir, "InstrumentSerif-Italic.ttf")),
@@ -198,6 +199,78 @@ export async function renderCarouselCover(input: CarouselCoverInput): Promise<st
     "__GRID__",
     theme.showGrid ? '<div class="grid-overlay"></div>' : ""
   );
+
+  // Carousel progress — consumed by templates with a top progress bar (e.g. dark-list-body)
+  html = html.replaceAll("__PROGRESS_CURRENT__", String(input.pageNumber ?? 0));
+  html = html.replaceAll("__PROGRESS_TOTAL__", String(input.totalPages ?? 1));
+
+  // Raw decorativeChar text (no wrapper) — used by templates that place the character inline,
+  // e.g. numeric covers that render it inside an accent box.
+  html = html.replaceAll("__DECORATIVE_CHAR_INLINE__", escapeHtml(input.slots.decorativeChar ?? ""));
+
+  // Arrow-bullet list rendered from decorativeChar with '|' separator (dark-bold-body).
+  if (html.includes("__BULLET_LIST__")) {
+    const raw = input.slots.decorativeChar ?? "";
+    if (raw.includes("|")) {
+      const items = raw.split("|").map((s) => s.trim()).filter(Boolean);
+      const list =
+        `<div class="details-label">Details</div>` +
+        `<ul class="bullet-list">${items
+          .map((b) => `<li>${escapeHtml(b)}</li>`)
+          .join("")}</ul>`;
+      html = html.replaceAll("__BULLET_LIST__", list);
+    } else {
+      html = html.replaceAll("__BULLET_LIST__", "");
+    }
+  }
+
+  // Closing line after bullets — rendered from subtitle when the template uses __CLOSING__.
+  if (html.includes("__CLOSING__")) {
+    const text = input.slots.subtitle ?? "";
+    html = html.replaceAll(
+      "__CLOSING__",
+      text ? `<p class="closing">${escapeHtml(text)}</p>` : ""
+    );
+  }
+
+  // Comparison labels — dark-compare-body uses decorativeChar as "goodLabel | badLabel".
+  if (html.includes("__GOOD_LABEL__") || html.includes("__BAD_LABEL__")) {
+    const raw = input.slots.decorativeChar ?? "";
+    const parts = raw.includes("|")
+      ? raw.split("|").map((s) => s.trim())
+      : [raw.trim(), ""];
+    html = html.replaceAll("__GOOD_LABEL__", escapeHtml(parts[0] ?? ""));
+    html = html.replaceAll("__BAD_LABEL__", escapeHtml(parts[1] ?? ""));
+  }
+
+  // Note text for compare body — rendered from subtitle as raw text (no wrapping).
+  if (html.includes("__NOTE_TEXT__")) {
+    html = html.replaceAll("__NOTE_TEXT__", escapeHtml(input.slots.subtitle ?? ""));
+  }
+
+  // Details block — combines subtitle (as pill chips when pipe-separated) + decorativeChar
+  // (as arrow-bullet list when pipe-separated). Templates opt-in by including __DETAILS__.
+  if (html.includes("__DETAILS__")) {
+    const subtitle = input.slots.subtitle ?? "";
+    const items = input.slots.decorativeChar ?? "";
+    let details = "";
+    if (subtitle.includes("|")) {
+      const chips = subtitle.split("|").map((s) => s.trim()).filter(Boolean);
+      details += `<div class="chip-row">${chips
+        .map((c) => `<span class="chip">${escapeHtml(c)}</span>`)
+        .join("")}</div>`;
+    } else if (subtitle) {
+      details += `<p class="subtitle">${escapeHtml(subtitle)}</p>`;
+    }
+    if (items.includes("|")) {
+      const bullets = items.split("|").map((s) => s.trim()).filter(Boolean);
+      details += `<div class="details-label">Details</div>`;
+      details += `<ul class="bullet-list">${bullets
+        .map((b) => `<li>${escapeHtml(b)}</li>`)
+        .join("")}</ul>`;
+    }
+    html = html.replaceAll("__DETAILS__", details);
+  }
 
   // Headline + accent word
   html = html.replaceAll("__HEADLINE__", renderHeadline(input.slots.headline, input.slots.accentWord));
@@ -281,7 +354,6 @@ export async function renderCarouselCover(input: CarouselCoverInput): Promise<st
       path: outputPath as `${string}.png`,
       type: "png",
       omitBackground: false,
-      timeout: 20000,
     });
     const elapsed = Date.now() - t0;
     console.log(`[carousel_cover] rendered ${input.templateId} in ${elapsed}ms → ${outputPath}`);

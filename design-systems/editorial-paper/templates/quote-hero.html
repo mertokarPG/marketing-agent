@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {
+    font-family: 'Instrument Serif';
+    font-style: normal;
+    src: url('__FONT_SERIF_REGULAR__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Instrument Serif';
+    font-style: italic;
+    src: url('__FONT_SERIF_ITALIC__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Geist';
+    font-weight: 400;
+    src: url('__FONT_SANS_REGULAR__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Geist';
+    font-weight: 700;
+    src: url('__FONT_SANS_BOLD__') format('truetype');
+  }
+  @font-face {
+    font-family: 'Geist';
+    font-weight: 900;
+    src: url('__FONT_SANS_BLACK__') format('truetype');
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    background: #f4efe8;
+    color: __TEXT_COLOR__;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    padding: 72px 100px 72px 140px;
+    overflow: hidden;
+  }
+
+  .bg-layer { position: absolute; inset: 0; z-index: 0; }
+
+  .grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, __GRID_COLOR__ 1px, transparent 1px),
+      linear-gradient(to bottom, __GRID_COLOR__ 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Thick accent rule on left edge — the defining quote-hero element */
+  .canvas::before {
+    content: '';
+    position: absolute;
+    top: 140px;
+    bottom: 140px;
+    left: 72px;
+    width: 6px;
+    background: var(--accent);
+    z-index: 2;
+  }
+
+  /* Oversized opening quotation mark */
+  .canvas::after {
+    content: '\201C';
+    position: absolute;
+    left: 88px;
+    top: 50px;
+    font-family: 'Instrument Serif', serif;
+    font-size: 360px;
+    line-height: 1;
+    color: var(--accent);
+    opacity: 0.35;
+    pointer-events: none;
+    user-select: none;
+    z-index: 1;
+  }
+
+  .kicker {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-top: 220px;
+    margin-bottom: 40px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .headline {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: 108px;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    color: __TEXT_COLOR__;
+    max-width: 820px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Accent span: italic stays (matches quote voice) but a heavy underline
+     gives it visual weight. Instrument Serif has only one weight, so we can't
+     bold it — underline + color is the next-best way to make it pop. */
+  .headline .accent {
+    color: var(--accent);
+    font-style: italic;
+    display: inline;
+    text-decoration: underline;
+    text-decoration-thickness: 6px;
+    text-underline-offset: 14px;
+    text-decoration-color: var(--accent);
+  }
+
+  .subtitle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: __SUBTITLE_COLOR__;
+    margin-top: 56px;
+    max-width: 700px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .subtitle::before {
+    content: '\2014  ';
+    color: var(--accent);
+  }
+
+  /* decorative-char and sticker intentionally unused for this layout; hide if injected */
+  .decorative-char, .sticker { display: none; }
+
+  .footer {
+    position: absolute;
+    bottom: 48px;
+    left: 140px;
+    right: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: __TEXT_COLOR__;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .handle img { width: 28px; height: 28px; }
+
+  .logo {
+    height: 48px;
+    width: auto;
+    filter: __LOGO_FILTER__;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 48px;
+    right: 80px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: __TEXT_COLOR__;
+    background: __PAGE_INDICATOR_BG__;
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="bg-layer">__BG_LAYER__</div>
+  __GRID__
+
+  __PAGE_INDICATOR__
+
+  __DECORATIVE_CHAR__
+
+  __KICKER__
+
+  <h1 class="headline">__HEADLINE__</h1>
+
+  __SUBTITLE__
+
+  __STICKER__
+
+  <div class="footer">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+</div>
+</body>
+</html>

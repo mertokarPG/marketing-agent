@@ -1,0 +1,18 @@
+{
+  "id": "signal",
+  "name": "Signal",
+  "description": "Bold, punchy. Archivo Black display type, tight scales, high-contrast electric-blue accent. Great for punchy statements and content with strong opinion.",
+  "engine": "react-jsx",
+  "templateName": "SignalTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300..700&family=Space+Mono:wght@400;700&display=swap",
+  "fonts": {
+    "display": "'Archivo Black', 'Impact', sans-serif",
+    "body": "'Space Grotesk', system-ui, sans-serif",
+    "mono": "'Space Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#f4f1ea", "ink": "#0a0a0a", "accent": "#1f3dff", "muted": "#6b6b6b", "rule": "#d8d4c9" },
+    "dark":  { "bg": "#0a0a0a", "ink": "#f4f1ea", "accent": "#6f85ff", "muted": "#8a8a8a", "rule": "#2a2a2a" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

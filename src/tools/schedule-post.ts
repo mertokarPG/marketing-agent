@@ -8,6 +8,13 @@ interface SchedulePostInput {
   scheduledTime?: string;
 }
 
+export interface SchedulePostResult {
+  ok: boolean;
+  message: string;
+  postizId?: string;
+  groupId?: string;
+}
+
 interface PostizMedia {
   id: string;
   path: string;
@@ -92,11 +99,14 @@ function isLocalPath(source: string): boolean {
   return !source.startsWith("http://") && !source.startsWith("https://");
 }
 
-export async function schedulePost(input: SchedulePostInput): Promise<string> {
+export async function schedulePost(input: SchedulePostInput): Promise<SchedulePostResult> {
   const apiKey = process.env.POSTIZ_API_KEY;
 
   if (!apiKey) {
-    return "Postiz API key not configured. Post saved to content calendar but not scheduled.";
+    return {
+      ok: false,
+      message: "Postiz API key not configured. Post saved to content calendar but not scheduled.",
+    };
   }
 
   try {
@@ -127,8 +137,19 @@ export async function schedulePost(input: SchedulePostInput): Promise<string> {
       input.caption +
       (input.hashtags.length > 0 ? "\n\n" + input.hashtags.join(" ") : "");
 
-    // 4. Create post with Postiz's expected format
-    const postDate = input.scheduledTime ?? new Date().toISOString();
+    // 4. Create post with Postiz's expected format.
+    //    Clamp past times to now+5min so a stale/past schedule never publishes
+    //    instantly or silently drops — the agent doesn't always know the clock.
+    const nowMs = Date.now();
+    const requested = input.scheduledTime ? new Date(input.scheduledTime).getTime() : nowMs;
+    const minFutureMs = nowMs + 5 * 60 * 1000;
+    const clamped = Number.isFinite(requested) && requested < minFutureMs;
+    if (clamped) {
+      console.warn(
+        `[schedule-post] requested time ${input.scheduledTime} is in the past; clamping to ${new Date(minFutureMs).toISOString()}`
+      );
+    }
+    const postDate = clamped ? new Date(minFutureMs).toISOString() : new Date(requested).toISOString();
     const body = {
       type: input.scheduledTime ? "schedule" : "now",
       date: postDate,
@@ -155,13 +176,64 @@ export async function schedulePost(input: SchedulePostInput): Promise<string> {
 
     if (!res.ok) {
       const errorText = await res.text();
-      return `Failed to schedule post via Postiz (${res.status}): ${errorText}`;
+      return {
+        ok: false,
+        message: `Failed to schedule post via Postiz (${res.status}): ${errorText}`,
+      };
     }
 
-    const data = (await res.json()) as { id?: string };
+    // Postiz responds with the group + an array of per-platform post ids. We
+    // resolve the actual Postiz post id by querying the list endpoint around
+    // the scheduled timestamp and matching on integration + group.
+    const data = (await res.json()) as {
+      id?: string;
+      group?: string;
+      posts?: Array<{ id: string }>;
+    };
+    const groupId = data.group ?? data.id;
+    let postizId = data.posts?.[0]?.id ?? data.id;
+
+    if (!postizId && groupId) {
+      postizId = await lookupPostIdByGroup(groupId, postDate, integrationId);
+    }
+
     const postType = mediaItems.length > 1 ? "carousel" : "post";
-    return `Post scheduled successfully via Postiz. ID: ${data.id ?? "unknown"}, Type: ${body.type}, Images: ${mediaItems.length}, PostType: ${postType}`;
+    return {
+      ok: true,
+      message: `Post scheduled successfully via Postiz. ID: ${postizId ?? "unknown"}, Type: ${body.type}, Images: ${mediaItems.length}, PostType: ${postType}`,
+      postizId,
+      groupId,
+    };
   } catch (error) {
-    return `Failed to schedule post: ${error instanceof Error ? error.message : String(error)}`;
+    return {
+      ok: false,
+      message: `Failed to schedule post: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+// Postiz's POST /posts returns a group id + array of per-platform posts; some
+// self-hosted versions respond without the per-post id. Fall back to a list
+// query in a ±10-minute window around the scheduled time.
+async function lookupPostIdByGroup(
+  groupId: string,
+  scheduledIso: string,
+  integrationId: string
+): Promise<string | undefined> {
+  const d = new Date(scheduledIso);
+  const startDate = new Date(d.getTime() - 10 * 60 * 1000).toISOString().slice(0, 10);
+  const endDate = new Date(d.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  try {
+    const res = await postizFetch(`/posts?startDate=${startDate}&endDate=${endDate}`);
+    if (!res.ok) return undefined;
+    const body = (await res.json()) as {
+      posts?: Array<{ id: string; group?: string; integration?: { id?: string } }>;
+    };
+    const match = body.posts?.find(
+      (p) => p.group === groupId && p.integration?.id === integrationId
+    );
+    return match?.id;
+  } catch {
+    return undefined;
   }
 }

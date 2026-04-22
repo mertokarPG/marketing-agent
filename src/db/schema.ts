@@ -27,6 +27,8 @@ export function createDatabase(dbPath: string): Database.Database {
       shares INTEGER DEFAULT 0,
       reach INTEGER DEFAULT 0,
       impressions INTEGER DEFAULT 0,
+      views INTEGER DEFAULT 0,
+      saves INTEGER DEFAULT 0,
       profile_visits INTEGER DEFAULT 0,
       link_clicks INTEGER DEFAULT 0,
       measured_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -55,9 +57,37 @@ export function createDatabase(dbPath: string): Database.Database {
   `);
 
   migratePostsSourceImages(db);
+  migrateAnalyticsViewsSaves(db);
+  migratePostsOutlierAnnotations(db);
   backfillSourceImagesFromCaptions(db);
 
   return db;
+}
+
+// Migration: add is_outlier + notes columns so the user can annotate posts
+// that had an external boost (friend reposted, paid ad, algo quirk) and the
+// agent knows to discount them when looking for patterns.
+function migratePostsOutlierAnnotations(db: Database.Database): void {
+  const cols = db.prepare(`PRAGMA table_info(posts)`).all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  const run = (sql: string) => db.exec(sql);
+  if (!names.has("is_outlier")) {
+    run(`ALTER TABLE posts ADD COLUMN is_outlier INTEGER NOT NULL DEFAULT 0`);
+  }
+  if (!names.has("notes")) {
+    run(`ALTER TABLE posts ADD COLUMN notes TEXT`);
+  }
+}
+
+// Migration: add views + saves columns. Postiz's IG analytics returns both;
+// the original schema didn't have slots for them. Uses better-sqlite3's SQL
+// runner (not a shell call).
+function migrateAnalyticsViewsSaves(db: Database.Database): void {
+  const cols = db.prepare(`PRAGMA table_info(analytics)`).all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  const run = (sql: string) => db.exec(sql);
+  if (!names.has("views")) run(`ALTER TABLE analytics ADD COLUMN views INTEGER DEFAULT 0`);
+  if (!names.has("saves")) run(`ALTER TABLE analytics ADD COLUMN saves INTEGER DEFAULT 0`);
 }
 
 // Migration: add source_images column if missing. Stores JSON array of prompt IDs

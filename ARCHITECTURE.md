@@ -29,11 +29,12 @@ Built with TypeScript. The "brain" is Claude (via Anthropic SDK `toolRunner`), w
         ├─────────────┤    ├─────────────┤    ├─────────────┤
         │scrape_       │    │get_recent_  │    │carousel_    │
         │ competitor   │    │ posts       │    │ cover       │
-        │search_       │    │get_post_    │    │brand_image  │
-        │ trends       │    │ performance │    │brand_       │
-        │              │    │browse_      │    │ carousel    │
-        │              │    │ prompt_bank │    │schedule_    │
-        │              │    │ (dedup-aware)│    │ post        │
+        │search_       │    │get_post_    │    │body_slide   │
+        │ trends       │    │ performance │    │brand_image  │
+        │              │    │browse_      │    │brand_       │
+        │              │    │ prompt_bank │    │ carousel    │
+        │              │    │ (dedup-aware)│    │schedule_    │
+        │              │    │             │    │ post        │
         │              │    │             │    │send_        │
         │              │    │             │    │ notification│
         └──────┬──────┘    └──────┬──────┘    └──────┬──────┘
@@ -79,7 +80,9 @@ for await (msg of client.beta.messages.toolRunner({
 
 ### Tool registration is conditional:
 - `browse_prompt_bank` — only if `brand.promptBankPath` is set
-- `brand_image` / `brand_carousel` / `carousel_cover` — only if `brand.branding.enabled` is true
+- `brand_image` / `brand_carousel` — only if `brand.branding.enabled` is true (engine-agnostic, sharp-based)
+- `carousel_cover` / `body_slide` / `photo_overlay` — only if `brand.branding.enabled` is true AND the active design system is `engine: "html-tokens"`. For these, the template-id enums and per-kind slot schemas are derived at tool-build time from the loaded design-system manifest.
+- For `engine: "react-jsx"` design systems, `carousel_cover` and `body_slide` are registered with different schemas (discriminated union per slide kind) that mirror the JSX renderer's slot shape.
 
 ## Tools
 
@@ -102,19 +105,36 @@ for await (msg of client.beta.messages.toolRunner({
 
 | Tool | File | Engine | Purpose |
 |------|------|--------|---------|
-| `carousel_cover` | `carousel-cover.ts` | **Puppeteer + HTML template** | Renders editorial cover slide (slide 1 of a carousel) from a named template. Full CSS typography, font pairing, gradient backgrounds, decorative elements. Returns local PNG. |
-| `brand_image` | `brand-image.ts` | **sharp + SVG** | Composites branding onto single image OR renders text-card slide (with optional grainy gradient base via puppeteer, composited back through sharp). Returns local PNG. |
-| `brand_carousel` | `brand-image.ts` | **sharp** | Batch-brands multiple slides. DO NOT feed a `carousel_cover` output through this — already branded → double-branded. Use for pure photo or text-only carousels without a cover. |
+| `carousel_cover` | `carousel-cover.ts` (html-tokens) / `react-slide.ts` (react-jsx) | **Puppeteer + HTML/token template** OR **Puppeteer + React/Babel + JSX** | Renders slide 1 of a carousel. Schema varies per engine — html-tokens exposes rich slots (headline, kicker, decorativeChar, stickerText, background); react-jsx exposes the cover-kind slots (eyebrow, kicker, title, subtitle, cta) plus mode/markVariant/accentColor. |
+| `body_slide` | `carousel-cover.ts` (html-tokens) / `react-slide.ts` (react-jsx) | Same engines as carousel_cover | html-tokens: picks a `body-*` template and reuses the cover renderer. react-jsx: discriminated union over slide kinds `intro / numbered / stat / list / cta`, each with its own slot shape. |
+| `photo_overlay` | `photo-overlay.ts` | **Puppeteer + HTML/token template** | Composites editorial text onto a source photo via a `photo-*` template. Only registered for html-tokens systems that ship photo templates. |
+| `brand_image` | `brand-image.ts` | **sharp + SVG** | Composites branding onto a single image OR renders a text-card slide (with optional grainy gradient base). Engine-agnostic. |
+| `brand_carousel` | `brand-image.ts` | **sharp** | Batch-brands multiple slides. DO NOT feed a rendered cover/body/photo-overlay output through this — already branded → double-branded. Use for pure photo or text-only carousels without a cover. |
 | `schedule_post` | `schedule-post.ts` | Postiz API | Uploads images, schedules post. Requires `promptIds[]` so used images get tracked for dedup. |
 | `send_notification` | `notify.ts` | SMTP | Sends email summary. Falls back to console.log. |
 
+## Design Systems
+
+Templates, fonts, and palettes are grouped into **design systems** under `design-systems/<id>/`. A brand picks one via `"designSystem": "<id>"` in `brand.json`. Logo and IG icon stay brand-specific under `brands/<id>/assets/`.
+
+Each design system declares an **engine** in its `design-system.json` manifest:
+
+| Engine | Authored as | Renderer | Tool schemas | Systems shipped |
+|--------|-------------|----------|--------------|-----------------|
+| `html-tokens` | Hand-written `.html` with `__TOKEN__` placeholders | `src/tools/carousel-cover.ts` (covers + body) + `src/tools/photo-overlay.ts` (photo-led) | Rich, per-template; enums derive from manifest `templates.{cover,body,photoOverlay}` lists | `editorial-paper` (9 covers + 7 body + 4 photo-overlays) |
+| `react-jsx` | `template.jsx` React component with `{ slide, idx, total, handle, year, pal, fonts, mark }` props | `src/tools/react-slide.ts` — loads shared `src/react-runtime/shared.jsx` + the template JSX into a Puppeteer page with React 18 + Babel Standalone, screenshots after mount | Discriminated union per slide kind (`cover / intro / numbered / stat / list / image / cta`) with kind-specific slot shapes | `atelier`, `signal`, `mute`, `gridos`, `bloom`, `nocturne`, `archive`, `riso`, `vapor`, `bauhaus`, `terminal`, `couture` |
+
+`loadDesignSystem(id, designSystemsDir)` reads the manifest, validates it against a union of `HtmlTokenManifestSchema` and `ReactJsxManifestSchema`, and returns `{ ...manifest, rootDir }`. `isHtmlTokens()` / `isReactJsx()` narrow the type so tool-building code only sees the fields that apply.
+
+To add a new system: drop `design-systems/<new-id>/{design-system.json, templates/ | template.jsx, assets/fonts/}` and set `"designSystem": "<new-id>"` in a brand. Tool schemas re-derive automatically — no orchestrator code change.
+
 ## Image Generation Engines
 
-The project uses **two complementary image engines** chosen per use case:
+The project has **three image engines** chosen per use case:
 
-### Engine A: Puppeteer + HTML/CSS (carousel_cover)
+### Engine A: Puppeteer + HTML/token template (carousel_cover + body_slide + photo_overlay, html-tokens design systems)
 
-For editorial covers where typography + layout quality matter:
+For editorial covers AND body slides where typography + layout quality matter. Both tools share the same `renderCarouselCover` function in `src/tools/carousel-cover.ts`; they differ only in which `templateId` enum the agent can pick (cover names for `carousel_cover`, `body-*` names for `body_slide`):
 
 ```
 brands/<brand>/templates/<id>.html
@@ -135,9 +155,38 @@ Puppeteer (headless Chromium)
 tmp/covers/<uuid>.png
 ```
 
-Why this engine: CSS is the best typography engine that exists. Font pairing, blend modes, large decorative glyphs, curved text — all trivial. Templates are hand-crafted for visual quality; new templates are added by dropping an `.html` file in `brands/<brand>/templates/` and registering the id in the `carousel_cover` tool's `templateId` enum.
+Why this engine: CSS is the best typography engine that exists. Font pairing, blend modes, large decorative glyphs, curved text — all trivial. Templates are hand-crafted for visual quality; new templates are added by dropping an `.html` file in `brands/<brand>/templates/` and registering the id in either the `carousel_cover` (cover) or `body_slide` (body) tool's `templateId` enum.
 
-### Engine B: sharp + SVG (brand_image)
+### Engine B: Puppeteer + React/JSX (carousel_cover + body_slide, react-jsx design systems)
+
+Each react-jsx design system ships a single `template.jsx` with a function that dispatches on `slide.kind`. `renderReactSlide` wires it up:
+
+```
+design-systems/<id>/template.jsx          src/react-runtime/shared.jsx
+         │                                           │
+         └───────────────────┬───────────────────────┘
+                             ▼
+             Inlined as <script type="text/babel"> into a
+             minimal HTML shell with React 18 + Babel Standalone
+             + Google Fonts <link> from manifest.googleFontsUrl
+                             │
+                             ▼
+                 Bootstrap <script>:
+                   PROPS = { slide, idx, total, handle, year, pal, fonts, mark }
+                   ReactDOM.createRoot(#root).render(<Renderer {...PROPS} />)
+                   document.body.setAttribute('data-ready', '1')
+                             │
+                             ▼
+             Puppeteer waits for `body[data-ready]`, waits
+             for fonts.ready, then screenshots 1080×1350.
+                             │
+                             ▼
+                  tmp/react-slides/<uuid>.png
+```
+
+~2.4s per slide (Babel compile + React mount + screenshot). The bootstrap also listens for `pageerror` / console.error so mistranspiled JSX surfaces in Node logs.
+
+### Engine C: sharp + SVG (brand_image)
 
 For body slides — photos with text overlays, or text cards on grainy gradient backgrounds:
 
@@ -226,37 +275,83 @@ The grain tile is a **PNG generated at module load** (not SVG feTurbulence — C
 
 `pickAccentForMood(mood)` returns a color from `palette.accents` — guaranteed to contrast with the gradient. `carousel_cover` uses this when a mood is active, so accent words on sunset never pick orange, cobalt never picks blue, etc.
 
-## Template System: Editorial Covers
+## Template System: `html-tokens` engine
 
-Templates live in `brands/<brand>/templates/*.html`. Each is a self-contained HTML doc with:
+Templates live in `design-systems/<id>/templates/*.html`. Each is a self-contained HTML doc with:
 
 - `@font-face` rules with `__FONT_*__` tokens (substituted with `file://` URLs at render time)
 - Content slot tokens: `__HEADLINE__`, `__KICKER__`, `__SUBTITLE__`, `__ACCENT_COLOR__`, `__DECORATIVE_CHAR__`, `__STICKER__`, `__PAGE_INDICATOR__`, `__LOGO__`, `__IG_ICON__`, `__HANDLE__`
 - Background slot: `__BG_LAYER__` (filled by gradient renderer or cream background)
 - Theme slots: `__TEXT_COLOR__`, `__SUBTITLE_COLOR__`, `__LOGO_FILTER__`, `__PAGE_INDICATOR_BG__`, `__GRID__`, `__GRID_COLOR__`
 
-### Current templates
+`editorial-paper` ships 9 covers + 7 body templates + 4 photo-overlay templates, progress-bar/CSS-var injection for top-of-slide pagination (dark-list-body + dark-bold-body + dark-compare-body + cream-numeric-cover + spec-annotated-cover), and a second engine concept that some templates use: pipe-separated strings in `subtitle` render as pill chips, pipe-separated strings in `decorativeChar` render as arrow-bullet lists. `photo_overlay` uses the `photo-*` templates and embeds the source photo as a data URL behind the text overlay.
+
+### Cover templates (9) — used by `carousel_cover` (editorial-paper)
 
 | Template | Layout | Use for |
 |----------|--------|---------|
-| `headline-accent` | Kicker + big serif headline + italic-accent word + subtitle + optional decorative glyph + optional sticker bubble | Listicles, numbered hooks, statements, editorial covers |
+| `headline-accent` | Kicker + big serif headline + italic-accent word + subtitle + optional decorative glyph + optional sticker bubble | Listicles, numbered hooks, general statements |
+| `quote-hero` | Giant italic serif pull-quote with left accent rule + oversized quote mark. Accent word rendered with 6px underline at 14px offset (Instrument Serif is single-weight, so underline is the only way to add pop) | Pithy sentences, manifestos, bold user-style quotes |
+| `stat-drop` | Massive 520px serif stat ('3X', '89%', 'ZERO') with accent bar + explainer | Dramatic numbers as the hero |
+| `question-lead` | Big italic serif question + giant background '?' glyph + accent-ruled answer tease inside a chip backdrop with `backdrop-filter: blur(6px)` and full-contrast text (so it reads on aurora/dark moods) | Curiosity hooks, engagement bait |
+| `split-compare` | Top/bottom BEFORE/AFTER halves with scrim + center arrow divider | Studio-vs-AI, old-way-vs-new-way contrasts |
+| `kicker-led` | 96px bold sans kicker as the hero + small serif body line + huge corner index numeral | Section headers, 'Part 1' chapter covers |
+| `dark-hero-cover` | Charcoal paper with grain + grid + corner registration marks; huge condensed sans headline with dashed-bracketed serif-italic accent word; optional blue speech-bubble sticker | Premium/editorial, bold statements |
+| `cream-numeric-cover` | Red italic-serif kicker + giant accent numeral (`decorativeChar`) beside huge bold sans headline + italic-serif underlined subtitle + optional blue sticker | `[N] Signals / Signs / Tips` numeric leads |
+| `spec-annotated-cover` | Cream paper in architectural-spec aesthetic with hatched margin strips, red italic spec-number annotations, red-bordered rounded-square number box, squiggle arrow | `[N] Mistakes / Rules / Myths` where the number IS the hero |
 
-### Adding a new template
+### Body-slide templates (7) — used by `body_slide`
 
-1. Copy `headline-accent.html` to `brands/<brand>/templates/<new-id>.html`
+| Template | Layout | Use for |
+|----------|--------|---------|
+| `body-list-item` | Giant accent numeral ('01', '02') + short Geist heading + multi-line body paragraph | Numbered tips, listicle body points |
+| `body-pullout` | Italic serif insight sentence with accent rule + supporting paragraph below | Key takeaways, mini-insights between sections |
+| `body-quote` | Italic serif testimonial with oversized opening quote glyph + em-dashed attribution | User testimonials, expert pulls (smaller than cover `quote-hero`) |
+| `body-caption-led` | Tiny uppercase kicker label + heavy Geist Black lead sentence + body paragraph | Story beats, expanded explanations |
+| `dark-list-body` | Top carousel progress bar + small serif kicker + huge serif headline. Optional pill-chip row (pipe-separated `subtitle`) and arrow-bullet list (pipe-separated `decorativeChar`) | Dark-mode tips, font/term catalogues |
+| `dark-bold-body` | Same dark aesthetic but headline is HUGE bold condensed sans. Bullets from `decorativeChar`, closing line from `subtitle` | Statement-headline tips ('They Think In Systems') |
+| `dark-compare-body` | Two side-by-side ✓/✕ mock UI panels with "Note" callout. Labels from `decorativeChar` as `'Good | Bad'`, note paragraph from `subtitle` | DO/DON'T, clear-vs-cluttered comparisons |
+
+### Photo-overlay templates (4) — used by `photo_overlay` (editorial-paper)
+
+| Template | Layout | Use for |
+|----------|--------|---------|
+| `photo-caption-bar` | Cream caption bar at bottom with serif headline + sans subtitle | Magazine-style photo posts |
+| `photo-quote-center` | Centered italic serif quote with dark cinematic scrim + oversized quotation mark | Attention-grabbing single photos |
+| `photo-editorial-stack` | Top-left kicker + huge serif headline with top-biased gradient scrim | Magazine cover |
+| `photo-chip-corner` | Small cream pill chip at bottom-right — minimal, lets the photo breathe | Understated captions |
+
+### Adding a new html-tokens template
+
+1. Copy an existing template file to `design-systems/<id>/templates/<new-id>.html`
 2. Edit layout + CSS (keep all token placeholders the renderer substitutes)
-3. Add the id to the `templateId` enum in `orchestrator.ts` (`carousel_cover` tool schema)
-4. Tell the agent in the system prompt when to pick it
+3. Add the new id to the `templates.{cover,body,photoOverlay}` array in `design-systems/<id>/design-system.json`
+4. Tool enums regenerate automatically. Tell the agent in the system prompt when to pick it.
+
+### Adding a new react-jsx design system
+
+1. Drop `design-systems/<new-id>/template.jsx` exporting `window.<Name>Template = function(...)` with the same props shape as the other systems
+2. Drop `design-systems/<new-id>/design-system.json` with `engine: "react-jsx"`, `templateName`, `googleFontsUrl`, font stack, `palettes.{light,dark}`, and the `slideKinds` it supports
+3. Any brand can now select it via `"designSystem": "<new-id>"` in `brand.json`
+
+## Accent color precedence
+
+Every render picks an accent color with this fallback chain:
+
+1. **Per-call** — the agent passes `accentColor` (hex) to `carousel_cover` / `body_slide` / `photo_overlay`. Overrides everything for that one render.
+2. **Per-brand** — if unset, `brand.branding?.colors?.accent` is used (set in `brand.json`). This applies to both engines so a brand can enforce a consistent accent across posts regardless of the design system.
+3. **Per-design-system** — if still unset, the system's default is used. html-tokens: `defaultAccentPalette[]` picked at random or via `pickAccentForMood()` if a gradient mood is active. react-jsx: `palettes.{mode}.accent`.
+
+This lets a brand manager pick a design system, then optionally override its accent with their own, without editing either file.
 
 ## Fonts
 
-The carousel cover uses **Instrument Serif** (display, italic for accents) + **Geist** (sans, for kicker/subtitle/handle). Files in `brands/carephoto/assets/fonts/`:
-- `InstrumentSerif-Regular.ttf`, `InstrumentSerif-Italic.ttf`
-- `Geist-Regular.ttf`, `Geist-Bold.ttf`, `Geist-Black.ttf`
+Fonts live with the design system that uses them, not with the brand.
 
-`brand_image` (sharp pipeline) uses **SF Old Republic** — declared in `brand.json.branding.fontPath`, embedded via base64 `@font-face` in the SVG overlay.
+- **`editorial-paper`** (html-tokens) ships local font files in `design-systems/editorial-paper/assets/fonts/` — Instrument Serif (display + italic accent) and Geist (sans regular/bold/black). Referenced as `file://` URLs at render time.
+- **react-jsx systems** (atelier, signal, …) declare their font stack in the manifest and link a `googleFontsUrl` at render time — atelier pulls Fraunces + Inter + JetBrains Mono, signal pulls Archivo Black + Space Grotesk + Space Mono, etc. No local font files needed for these.
 
-Two different fonts = two visual "types" on the feed. Expanding this means either adding template variants under `headline-accent`-style covers, or porting brand_image body slides to puppeteer with their own templates.
+`brand_image` (sharp pipeline) uses **SF Old Republic** — declared in `brand.json.branding.fontPath`, embedded via base64 `@font-face` in the SVG overlay. This stays under `brands/<id>/assets/` because `brand_image` is the only pipeline that uses it and it's a brand-specific display choice, not a design-system concern.
 
 ## Posting Pipeline: `src/tools/schedule-post.ts`
 
@@ -276,6 +371,45 @@ POST /posts  →  Postiz schedules to Instagram
       ▼
 Records to DB: posts table (with source_images[]) + content_calendar
 ```
+
+### Outlier protection (shipped 2026-04-21)
+
+Without guardrails the agent would over-weight any one-off hot post (friend reposts, paid boost, algo quirk). Two layers protect against this.
+
+**Layer 1 — user annotation** via `npm run flag-outlier`:
+
+```
+npm run flag-outlier -- --list                              # show recent posts with internal ids
+npm run flag-outlier -- 23 --reason "200K friend reposted"  # flag post #23
+npm run flag-outlier -- 23 --unflag                         # clear flag
+```
+
+Persists `posts.is_outlier` (0/1) + `posts.notes` (free text). `get_post_performance` surfaces both to the agent with a `⚠ USER-FLAGGED OUTLIER: <reason>` line so the agent can read the *why* and discount the row.
+
+**Layer 2 — auto stats flag** in `getPostPerformanceTool`:
+- Computes rolling median + sorted distribution over the last 20 non-outlier posts (`BASELINE_WINDOW = 20`).
+- Each row is annotated as `N likes (X.X×, pN)` — value, multiple-of-median, and percentile within the baseline pool.
+- Any post hitting `≥5×` the median on likes / views / reach gets a `⚠ STATS-FLAGGED (X.X× median) — possible external boost` line.
+- User-flagged posts are excluded from the baseline so the statistics aren't skewed by the row they're meant to protect against.
+
+Thresholds in `src/tools/post-performance.ts`:
+- `BASELINE_WINDOW = 20` — how many recent non-outlier posts form the baseline
+- `OUTLIER_MULTIPLIER = 5` — multiple of median that triggers the auto-flag
+
+### Analytics ingestion (shipped 2026-04-21)
+
+Runs at the top of every `runAgent` call (fails soft if Postiz is down). Module: `src/tools/ingest-analytics.ts`.
+
+Two phases:
+
+1. **Backfill** — for any `posts` row missing `external_post_id`, fetch `GET /posts?startDate=…&endDate=…` from Postiz and match candidates by caption-prefix containment + same publish day. Stores the matched Postiz id via `setExternalPostId()`.
+2. **Snapshot** — for every post with an `external_post_id`, fetch `GET /analytics/post/{id}`. Parses the `[{label, data:[{date, total}]}]` array into flat metrics and appends an `analytics` row (one row per ingestion, so metrics are time-series). Postiz exposes for IG: Views, Reach, Saves, Likes, Comments, Shares. Impressions / profile visits / link clicks stay at 0 (not in Postiz's response for IG).
+
+`get_post_performance` selects the LATEST analytics row per post via a `(SELECT post_id, MAX(measured_at))` join, so historical snapshots don't dilute the numbers the agent sees.
+
+Dependencies downstream:
+- `schedulePost` now returns `{ ok, message, postizId?, groupId? }` instead of a string. The orchestrator persists `postizId` as `external_post_id` in `insertPost`. Legacy posts without an id are healed by the backfill phase.
+- When Postiz's `POST /posts` response doesn't include a per-platform post id, `schedulePost` falls back to `GET /posts?startDate=…&endDate=…` filtered by group + integration id.
 
 ### Dedup tracking
 
@@ -310,7 +444,7 @@ Records to DB: posts table (with source_images[]) + content_calendar
 └──────────────────────────────────────────────────────┘
 ```
 
-**Note:** Postiz returns 200 on post creation even when Instagram delivery fails later. Check `state: "PUBLISHED"` via `GET /posts?startDate=...&endDate=...` to confirm actual delivery.
+**Note:** Postiz returns 200 on post creation even when Instagram delivery fails later. Check `state: "PUBLISHED"` via `GET /posts?startDate=...&endDate=...` to confirm actual delivery. Delete stale/error posts with `DELETE /posts/:id`. `GET /posts/:id` returns 404 on self-hosted — list via the date-range endpoint.
 
 ## Database: SQLite (`marketing-agent.db`)
 
@@ -323,11 +457,17 @@ posts
 ├── source_images (JSON array of prompt IDs) ← dedup key
 └── created_at
 
-analytics  (not yet populated — future work)
+analytics  (populated daily by ingest-analytics.ts; append-only time-series)
 ├── id, post_id (FK→posts), brand_id
 ├── likes, comments, shares, reach, impressions
-├── profile_visits, link_clicks
-└── measured_at
+├── views, saves                               ← added 2026-04-21 (Postiz IG metrics)
+├── profile_visits, link_clicks                ← not in Postiz IG response; stay 0
+└── measured_at  (one row per ingestion pass)
+
+posts  (outlier-protection columns added 2026-04-21)
+├── is_outlier      (0/1, user-set via npm run flag-outlier)
+├── notes           (free text: "200K friend reposted" etc.)
+└── …existing columns…
 
 competitor_snapshots
 ├── id, brand_id, competitor_name
@@ -351,32 +491,49 @@ The backfill is best-effort — only single-image historical posts that mention 
 
 ## Brand Configuration: `brands/<id>/brand.json`
 
-Loaded by `src/config/load-brand.ts` with Zod validation.
+Loaded by `src/config/load-brand.ts` with Zod validation. Brand files are now **thin** — templates and fonts live in design systems, leaving only brand-specific logos and icons in `brands/<id>/assets/`.
 
 ```
 brands/
   carephoto/
-    brand.json
+    brand.json             ← { designSystem: "editorial-paper", branding.colors.accent, … }
     assets/
       v4Logo_white_nobackground.png
       v4Logo_black_nobackground.png
-      sf-old-republic.regular.ttf            ← used by brand_image
+      sf-old-republic.regular.ttf            ← used by brand_image (sharp)
       instagram-logo-no-background.png
-      fonts/
-        InstrumentSerif-Regular.ttf           ← used by carousel_cover
-        InstrumentSerif-Italic.ttf
-        Geist-Regular.ttf
-        Geist-Bold.ttf
-        Geist-Black.ttf
+
+design-systems/
+  editorial-paper/                            ← html-tokens engine
+    design-system.json
     templates/
-      headline-accent.html                    ← editorial cover template
+      headline-accent.html
+      dark-list-body.html
+      photo-caption-bar.html
+      …  (20 templates)
+    assets/
+      fonts/
+        InstrumentSerif-Regular.ttf
+        Geist-Regular.ttf
+        …
+  atelier/                                    ← react-jsx engine
+    design-system.json                        ← googleFontsUrl, palettes, slideKinds
+    template.jsx                              ← AtelierTemplate(props) → JSX
+  signal/
+    design-system.json
+    template.jsx
+  …  (12 react-jsx systems total)
+
+src/react-runtime/
+  shared.jsx                                  ← loaded by every react-jsx render
 ```
 
-Key config sections:
+Key config sections in `brand.json`:
 - **Core**: id, name, domain, niche, description, tone, keywords
 - **Competitors**: array of {name, website, instagram?}
 - **Posting**: frequency (daily/weekdays/custom), preferredTime
-- **Branding** (optional): logo, font, IG icon, `accentPalette` (hex array for cover accents when no gradient is active), toggle for each overlay element
+- **Design system** (optional): `designSystem: "<id>"` — default is `editorial-paper`
+- **Branding** (optional): logo, font (for `brand_image` only), IG icon, `colors.accent` (per-brand default accent — overrides the design system's default), `accentPalette` (used by html-tokens covers when no gradient is active), toggle for each overlay element
 - **Carousel** (optional): frequency target (0.4 = 40%), min/max slides
 - **Prompt bank** (optional): path to JSON file of existing AI-generated images
 
@@ -434,11 +591,13 @@ SMTP_PASS=
 - The agent may post up to **5 times per day** (configured in `system-prompt.ts`)
 - Postiz `post_type` must always be `"post"` — carousels are posts with multiple images, not a separate type
 - Postiz returns 200 on post creation even if Instagram delivery fails later — check `state: "PUBLISHED"` via `GET /posts` to confirm actual delivery
+- **Hashtag cap: 5 per post** — Instagram changed this in late 2025 / 2026. More than 5 triggers a `"too many product tags"` delivery error. System prompt enforces 3-5 highly-relevant tags.
 
 ## What's Not Yet Built
 
 1. **Image generation** — fal.ai integration or carephoto MCP server for generating new images dynamically (currently selects from a fixed prompt bank)
-2. **Analytics ingestion** — Postiz analytics API (`GET /analytics/:integration`) not wired up; `analytics` table stays empty
-3. **Dry-run mode** — no `--dry-run` flag to skip actual Postiz posting
-4. **Concurrency limits** — parallel `brand_image` calls can stress puppeteer (5+ simultaneous renders occasionally time out). Agent auto-retries so non-blocking, but worth a semaphore later
-5. **More editorial templates** — only `headline-accent` exists. Adding quote, stat-hero, question-card, split templates would give the feed more visual variety
+2. **Dry-run mode** — no `--dry-run` flag to skip actual Postiz posting
+3. **Concurrency limits** — parallel puppeteer renders (covers + body slides) can stress Chromium (5+ simultaneous renders occasionally time out). Agent auto-retries so non-blocking, but worth a semaphore later
+4. **Delivery verification loop** — poll `GET /posts?state=PUBLISHED` after scheduling to flag ERROR deliveries and release their source_images (currently prompts get marked used at schedule time, even if IG delivery later fails)
+5. **Clamp `scheduledTime` to future** — agent occasionally picks a past UTC timestamp → Postiz immediately marks the post as ERROR. `schedule_post` should enforce `max(scheduledTime, now + 5min)`
+6. **Image-size / timeout mitigation** — large branded PNGs occasionally cause IG to report `"timeout downloading media"`. Options: pre-upload to CDN, resize outputs, add a retry

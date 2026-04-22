@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Instagram Carousel Templates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@300..700&family=Archivo+Black&family=Archivo:wght@300..900&family=Space+Grotesk:wght@300..700&family=Space+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@300..700&family=DM+Sans:wght@300..700&family=DM+Mono:wght@300..500&family=Caprasimo&family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=IBM+Plex+Sans:wght@300..700&family=IBM+Plex+Mono:wght@300..600&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=EB+Garamond:ital,wght@0,400..800;1,400..800&family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Syne:wght@400..800&family=Gloock&family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=Outfit:wght@100..900&family=Jost:wght@100..900&family=VT323&display=swap" rel="stylesheet">
+<style>
+  html,body { margin:0; padding:0; background:#0a0a0a; color:#eee; font-family:'Inter',system-ui,sans-serif; overflow:hidden; height:100vh; }
+  *, *::before, *::after { box-sizing: border-box; }
+  button { font: inherit; color: inherit; cursor: pointer; border: 0; background: transparent; }
+  .app-shell { position: fixed; inset: 0; display: flex; }
+  .main-stage { flex: 1; position: relative; display: flex; flex-direction: column; overflow: hidden; background: #0a0a0a; }
+  .top-bar {
+    padding: 18px 28px; display: flex; align-items: center; gap: 24px;
+    border-bottom: 1px solid #1f1f1f; background: #0a0a0a;
+  }
+  .brand { font-family:'Space Grotesk', system-ui; font-weight: 600; font-size: 16px; letter-spacing: -0.01em; color:#eee; display:flex; align-items:center; gap: 10px; }
+  .brand-dot { width: 10px; height: 10px; background: #c8ff3a; border-radius: 50%; }
+  .template-pills { display: flex; gap: 6px; padding: 4px; background: #141414; border-radius: 10px; overflow-x: auto; }
+  .template-pills button {
+    padding: 8px 14px; border-radius: 7px; font-size: 12px; font-weight: 500;
+    color: #9a9a9a; white-space: nowrap; letter-spacing: 0.02em;
+    font-family: 'Space Grotesk', system-ui;
+  }
+  .template-pills button.active { background: #242424; color: #eee; }
+  .template-pills button:hover:not(.active) { color: #ddd; }
+  .view-toggle { display: flex; background: #141414; border-radius: 10px; padding: 4px; gap: 4px; margin-left: auto; }
+  .view-toggle button { padding: 8px 14px; border-radius: 7px; font-size: 12px; color: #9a9a9a; font-family:'Space Grotesk', system-ui; }
+  .view-toggle button.active { background: #242424; color: #eee; }
+  .template-meta { font-family:'JetBrains Mono', monospace; font-size: 11px; color: #707070; letter-spacing: 0.08em; text-transform: uppercase; }
+  .stage { flex: 1; position: relative; overflow: hidden; }
+  .phone-frame {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    padding: 32px;
+  }
+  .carousel-holder {
+    position: relative; width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .slide-viewport {
+    position: relative;
+    aspect-ratio: 1080/1350;
+    height: 100%;
+    max-width: calc(100% - 140px);
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
+    background: #000;
+  }
+  .carousel-holder { padding: 10px 0; }
+  .slide-scaler { position: absolute; top: 0; left: 0; transform-origin: top left; }
+  .nav-arrow {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(255,255,255,0.08); color: #eee;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; backdrop-filter: blur(8px);
+    transition: all .2s; z-index: 5;
+  }
+  .nav-arrow:hover { background: rgba(255,255,255,0.16); }
+  .nav-arrow.prev { left: 20px; }
+  .nav-arrow.next { right: 20px; }
+  .dots-nav { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 5; }
+  .dots-nav button { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.22); padding: 0; }
+  .dots-nav button.active { background: #fff; }
+  .slide-counter { position: absolute; top: 20px; right: 28px; font-family:'JetBrains Mono', monospace; font-size: 11px; color: #8a8a8a; letter-spacing: 0.1em; text-transform: uppercase; z-index: 4; }
+  .grid-view { position: absolute; inset: 0; padding: 32px 48px 64px; overflow-y: auto; overflow-x: hidden; }
+  .grid-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 20px; align-items: start; }
+  .grid-cell { cursor: pointer; transition: transform .2s; position: relative; }
+  .grid-cell:hover { transform: translateY(-4px); }
+  .grid-cell .label { margin-top: 10px; font-family:'JetBrains Mono', monospace; font-size: 11px; color: #707070; letter-spacing: 0.08em; text-transform: uppercase; display: flex; justify-content: space-between; }
+  .grid-thumb { aspect-ratio: 1080/1350; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06); background:#111; position: relative; }
+  .sidebar {
+    width: 320px; background: #0d0d0d; border-left: 1px solid #1f1f1f;
+    overflow-y: auto; flex-shrink: 0;
+  }
+  .sidebar.hidden { display: none; }
+  .sidebar h3 {
+    font-family: 'Space Grotesk'; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #707070; margin: 24px 20px 12px; font-weight: 500;
+  }
+  .tweak-row { padding: 10px 20px; display:flex; flex-direction: column; gap: 8px; }
+  .tweak-row label { font-size: 12px; color: #aaa; font-family: 'Space Grotesk'; }
+  .tweak-row input[type=text] {
+    background: #161616; border: 1px solid #262626; color: #eee;
+    padding: 8px 12px; border-radius: 6px; font-size: 13px; font-family: 'Space Grotesk';
+    outline: none;
+  }
+  .tweak-row input[type=text]:focus { border-color: #3a3a3a; }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .swatch-row button {
+    width: 30px; height: 30px; border-radius: 50%; padding: 0;
+    border: 2px solid transparent; transition: border-color .15s; flex-shrink: 0;
+  }
+  .swatch-row button.active { border-color: #eee; }
+  .seg-control { display: flex; background: #161616; border-radius: 8px; padding: 3px; gap: 2px; }
+  .seg-control button { flex: 1; padding: 7px 8px; border-radius: 5px; font-size: 11px; color: #888; font-family: 'Space Grotesk'; letter-spacing: 0.04em; }
+  .seg-control button.active { background: #2a2a2a; color: #eee; }
+  .sidebar-section + .sidebar-section { border-top: 1px solid #1f1f1f; padding-bottom: 8px; }
+  .system-chip {
+    margin: 20px; padding: 14px 16px; background: #141414; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #9a9a9a;
+    line-height: 1.6; letter-spacing: 0.02em;
+  }
+  .system-chip b { color: #eee; font-weight: 500; }
+  .system-chip .accent { color: #c8ff3a; }
+  .hint { padding: 14px 20px; font-size: 11px; color: #707070; font-family: 'Space Grotesk'; line-height: 1.5; }
+  .tweaks-panel { position: absolute; top: 18px; right: 20px; z-index: 30; background: rgba(20,20,20,0.92); backdrop-filter: blur(12px); border: 1px solid #2a2a2a; border-radius: 12px; padding: 4px 10px; display: none; font-family: 'Space Grotesk'; font-size: 12px; color: #eee; }
+  .tweaks-panel.visible { display: flex; align-items: center; gap: 6px; }
+  .slide-type-badge { font-family:'JetBrains Mono', monospace; font-size: 11px; color: #8a8a8a; letter-spacing: 0.1em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- React & Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Data + shared -->
+<script type="text/babel" src="templates.jsx"></script>
+<script type="text/babel" src="sample_content.jsx"></script>
+<script type="text/babel" src="slide_shared.jsx"></script>
+
+<!-- Per-template renderers -->
+<script type="text/babel" src="template_atelier.jsx"></script>
+<script type="text/babel" src="template_signal.jsx"></script>
+<script type="text/babel" src="template_mute.jsx"></script>
+<script type="text/babel" src="template_gridos.jsx"></script>
+<script type="text/babel" src="template_bloom.jsx"></script>
+<script type="text/babel" src="template_archive.jsx"></script>
+<script type="text/babel" src="template_riso.jsx"></script>
+<script type="text/babel" src="template_vapor.jsx"></script>
+<script type="text/babel" src="template_bauhaus.jsx"></script>
+<script type="text/babel" src="template_terminal.jsx"></script>
+<script type="text/babel" src="template_couture.jsx"></script>
+<script type="text/babel" src="template_nocturne.jsx"></script>
+
+<!-- App -->
+<script type="text/babel" src="app.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

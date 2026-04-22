@@ -1,0 +1,18 @@
+{
+  "id": "couture",
+  "name": "Couture",
+  "description": "Luxe · magazine. Cormorant Garamond + Jost, warm gold accent on oat/ink. High-fashion editorial, beauty, lifestyle-luxury.",
+  "engine": "react-jsx",
+  "templateName": "CoutureTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300..700;1,300..700&family=Jost:wght@300..700&display=swap",
+  "fonts": {
+    "display": "'Cormorant Garamond', 'Didot', serif",
+    "body": "'Jost', system-ui, sans-serif",
+    "mono": "'Jost', system-ui, sans-serif"
+  },
+  "palettes": {
+    "light": { "bg": "#eae5de", "ink": "#141414", "accent": "#8a6a3a", "muted": "#8a8280", "rule": "#c8c0b8" },
+    "dark":  { "bg": "#141414", "ink": "#eae5de", "accent": "#d4a55a", "muted": "#8a8280", "rule": "#2a2a2a" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

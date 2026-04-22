@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px; height: 1350px;
+    background: #f4efe8;
+    color: #111111;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative; width: 1080px; height: 1350px;
+    padding: 140px 160px 140px 160px; overflow: hidden;
+    background: #f4efe8;
+  }
+
+  .grain {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0.4;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(0,0,0,0.025) 0, transparent 1px),
+      radial-gradient(circle at 70% 70%, rgba(0,0,0,0.02) 0, transparent 1px);
+    background-size: 3px 3px, 5px 5px;
+  }
+
+  .grid-overlay {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(to right, rgba(17,17,17,0.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(17,17,17,0.04) 1px, transparent 1px);
+    background-size: 90px 90px;
+    pointer-events: none; z-index: 1;
+  }
+
+  /* Hatched margin strips — architectural-spec feel */
+  .hatch {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(17,17,17,0.12) 0,
+      rgba(17,17,17,0.12) 2px,
+      transparent 2px,
+      transparent 12px
+    );
+  }
+  .hatch-top    { top: 120px; left: 80px; right: 80px; height: 80px; }
+  .hatch-bottom { bottom: 340px; left: 80px; right: 80px; height: 80px; }
+  .hatch-left   { top: 200px; bottom: 420px; left: 80px; width: 56px; }
+  .hatch-right  { top: 200px; bottom: 420px; right: 80px; width: 56px; }
+
+  /* Spec measurement numbers in accent red — decorative chrome */
+  .spec-num {
+    position: absolute;
+    z-index: 2;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 32px;
+    color: var(--accent);
+    opacity: 0.9;
+  }
+  .spec-n1 { top: 130px; left: 50%; transform: translateX(-50%); }
+  .spec-n2 { top: 300px; left: 40px; }
+  .spec-n3 { top: 300px; right: 40px; }
+  .spec-n4 { top: 360px; left: 50%; transform: translateX(50%); }
+  .spec-n5 { bottom: 370px; left: 50%; transform: translateX(-50%); }
+  .spec-n6 { bottom: 560px; left: 40px; }
+  .spec-n7 { bottom: 560px; right: 40px; }
+
+  /* Top progress bar */
+  .progress {
+    position: absolute; top: 74px; left: 96px; right: 96px;
+    height: 2px; background: rgba(17,17,17,0.14); z-index: 3;
+  }
+  .progress .fill {
+    position: absolute;
+    left: calc(((var(--pcurrent, 0) - 1) / max(var(--ptotal, 1), 1)) * 100%);
+    width: calc((1 / max(var(--ptotal, 1), 1)) * 100%);
+    top: -2px; height: 6px; background: var(--accent);
+  }
+
+  .crosshair { position: absolute; width: 32px; height: 32px; z-index: 3; opacity: 0.5; }
+  .crosshair::before, .crosshair::after { content: ""; position: absolute; background: rgba(17,17,17,0.35); }
+  .crosshair::before { left: 50%; top: 0; width: 1px; height: 100%; transform: translateX(-0.5px); }
+  .crosshair::after { top: 50%; left: 0; width: 100%; height: 1px; transform: translateY(-0.5px); }
+  .crosshair .ring { position: absolute; inset: 8px; border: 1px solid rgba(17,17,17,0.35); border-radius: 50%; }
+  .crosshair.tl { top: 22px; left: 24px; }
+  .crosshair.tr { top: 22px; right: 24px; }
+  .crosshair.bl { bottom: 22px; left: 24px; }
+  .crosshair.br { bottom: 22px; right: 24px; }
+
+  /* Boxed numeral — accent-colored rounded square, hero element.
+     min-width + padding lets single digits stay square-ish while double
+     digits naturally widen the box so the italic glyphs don't collide
+     with the right border. */
+  .number-box {
+    position: relative;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 180px;
+    height: 180px;
+    padding: 0 36px 0 28px;
+    border: 5px solid var(--accent);
+    border-radius: 40px;
+    margin-bottom: 12px;
+  }
+  .number-box .num {
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 130px;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -0.04em;
+    transform: translate(-6px, -4px);
+  }
+
+  .headline {
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 128px;
+    line-height: 0.94;
+    letter-spacing: -0.035em;
+    color: #111111;
+    max-width: 780px;
+    margin-top: 12px;
+    margin-bottom: 40px;
+    position: relative;
+    z-index: 4;
+  }
+
+  .headline .accent {
+    color: var(--accent);
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+  }
+
+  .subtitle-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 36px;
+    margin-top: 20px;
+    position: relative;
+    z-index: 4;
+  }
+
+  .subtitle {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 48px;
+    line-height: 1.1;
+    color: var(--accent);
+    max-width: 640px;
+    position: relative;
+    display: inline-block;
+  }
+  .subtitle::after {
+    content: "";
+    display: block;
+    width: 260px;
+    height: 5px;
+    background: #111111;
+    margin-top: 8px;
+    border-radius: 3px;
+    transform: translateY(2px) skewY(-2deg);
+  }
+
+  /* Squiggle arrow SVG */
+  .squiggle {
+    position: absolute;
+    right: 130px;
+    bottom: 420px;
+    width: 180px;
+    height: 180px;
+    z-index: 3;
+    opacity: 0.9;
+  }
+
+  .sticker, .decorative-char { display: none; }
+
+  .footer {
+    position: absolute;
+    bottom: 56px;
+    left: 96px;
+    right: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 4;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 400;
+    font-size: 22px;
+    color: rgba(17,17,17,0.75);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .handle img { width: 24px; height: 24px; }
+
+  .logo { height: 42px; filter: brightness(0); opacity: 0.85; }
+
+  .page-indicator { display: none; }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__; --pcurrent: __PROGRESS_CURRENT__; --ptotal: __PROGRESS_TOTAL__;">
+  <div class="grid-overlay"></div>
+  <div class="grain"></div>
+
+  <div class="hatch hatch-top"></div>
+  <div class="hatch hatch-bottom"></div>
+  <div class="hatch hatch-left"></div>
+  <div class="hatch hatch-right"></div>
+
+  <div class="spec-num spec-n1">48</div>
+  <div class="spec-num spec-n2">32</div>
+  <div class="spec-num spec-n3">32</div>
+  <div class="spec-num spec-n4">64</div>
+  <div class="spec-num spec-n5">48</div>
+  <div class="spec-num spec-n6">32</div>
+  <div class="spec-num spec-n7">32</div>
+
+  <div class="crosshair tl"><div class="ring"></div></div>
+  <div class="crosshair tr"><div class="ring"></div></div>
+  <div class="crosshair bl"><div class="ring"></div></div>
+  <div class="crosshair br"><div class="ring"></div></div>
+
+  <div class="progress"><div class="fill"></div></div>
+
+  <div class="number-box">
+    <span class="num">__DECORATIVE_CHAR_INLINE__</span>
+  </div>
+
+  <h1 class="headline">__HEADLINE__</h1>
+
+  <svg class="squiggle" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 30 C 80 10, 140 40, 120 90 C 100 135, 30 120, 60 160 L 155 180" stroke="__ACCENT_COLOR__" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <path d="M145 170 L 160 182 L 142 188" stroke="__ACCENT_COLOR__" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </svg>
+
+  <div class="subtitle-row">
+    __SUBTITLE__
+  </div>
+
+  <div class="footer">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+</div>
+</body>
+</html>

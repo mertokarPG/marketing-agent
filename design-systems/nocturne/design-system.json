@@ -1,0 +1,18 @@
+{
+  "id": "nocturne",
+  "name": "Nocturne",
+  "description": "Avant-garde, dark. Bricolage Grotesque + IBM Plex, electric-lime accent on ink black. Nightclub-flyer / avant-garde magazine aesthetic.",
+  "engine": "react-jsx",
+  "templateName": "NocturneTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,200..800&family=IBM+Plex+Sans:wght@300..700&family=IBM+Plex+Mono:wght@300..600&display=swap",
+  "fonts": {
+    "display": "'Bricolage Grotesque', system-ui, sans-serif",
+    "body": "'IBM Plex Sans', system-ui, sans-serif",
+    "mono": "'IBM Plex Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#e8e8e2", "ink": "#0c0c0a", "accent": "#4a5f1a", "muted": "#6a6a64", "rule": "#c8c8c0" },
+    "dark":  { "bg": "#0c0c0a", "ink": "#e8e8e2", "accent": "#c8ff3a", "muted": "#7a7a74", "rule": "#222220" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

@@ -33,6 +33,7 @@
   },
   "promptBankPath": "/Users/mertokar/Documents/GitHub/lula/public/promptbank/prompts.json",
   "instagramHandle": "careaiphotoeditor",
+  "designSystem": "editorial-paper",
   "branding": {
     "enabled": true,
     "logoPath": "assets/v4Logo_white_nobackground.png",

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    background: #f4efe8;
+    color: __TEXT_COLOR__;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    padding: 140px 100px 160px 100px;
+    overflow: hidden;
+  }
+
+  .bg-layer { position: absolute; inset: 0; z-index: 0; }
+
+  .grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, __GRID_COLOR__ 1px, transparent 1px),
+      linear-gradient(to bottom, __GRID_COLOR__ 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* Top kicker — small uppercase label above the lead */
+  .kicker {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 48px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid var(--accent);
+    display: inline-block;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Lead — heavy sans-serif sentence, the anchor of the slide */
+  .headline {
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 76px;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    color: __TEXT_COLOR__;
+    max-width: 880px;
+    margin-bottom: 48px;
+    position: relative;
+    z-index: 2;
+  }
+
+  .headline .accent {
+    color: var(--accent);
+    font-style: italic;
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    display: inline;
+  }
+
+  /* Body paragraph */
+  .subtitle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 400;
+    font-size: 30px;
+    line-height: 1.4;
+    color: __TEXT_COLOR__;
+    max-width: 860px;
+    position: relative;
+    z-index: 2;
+    opacity: 0.82;
+  }
+
+  .decorative-char, .sticker { display: none; }
+
+  .footer {
+    position: absolute;
+    bottom: 48px;
+    left: 100px;
+    right: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: __TEXT_COLOR__;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .handle img { width: 28px; height: 28px; }
+
+  .logo {
+    height: 48px;
+    width: auto;
+    filter: __LOGO_FILTER__;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 48px;
+    right: 80px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    color: __TEXT_COLOR__;
+    background: __PAGE_INDICATOR_BG__;
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="bg-layer">__BG_LAYER__</div>
+  __GRID__
+
+  __PAGE_INDICATOR__
+
+  __DECORATIVE_CHAR__
+
+  __KICKER__
+
+  <h1 class="headline">__HEADLINE__</h1>
+
+  __SUBTITLE__
+
+  __STICKER__
+
+  <div class="footer">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+</div>
+</body>
+</html>

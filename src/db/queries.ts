@@ -32,19 +32,27 @@ interface AnalyticsInsert {
   shares: number;
   reach: number;
   impressions: number;
+  views: number;
+  saves: number;
   profile_visits: number;
   link_clicks: number;
 }
 
 interface PerformanceRow {
+  post_id: number;
+  external_post_id: string | null;
   caption: string;
   content_theme: string | null;
   posted_at: string | null;
+  is_outlier: number;
+  notes: string | null;
   likes: number;
   comments: number;
   shares: number;
   reach: number;
   impressions: number;
+  views: number;
+  saves: number;
   profile_visits: number;
   link_clicks: number;
   measured_at: string;
@@ -125,8 +133,8 @@ export function insertAnalytics(
   analytics: AnalyticsInsert
 ): number {
   const stmt = db.prepare(`
-    INSERT INTO analytics (post_id, brand_id, likes, comments, shares, reach, impressions, profile_visits, link_clicks)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO analytics (post_id, brand_id, likes, comments, shares, reach, impressions, views, saves, profile_visits, link_clicks)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   const result = stmt.run(
     analytics.post_id,
@@ -136,12 +144,61 @@ export function insertAnalytics(
     analytics.shares,
     analytics.reach,
     analytics.impressions,
+    analytics.views,
+    analytics.saves,
     analytics.profile_visits,
     analytics.link_clicks
   );
   return Number(result.lastInsertRowid);
 }
 
+export function getPostsNeedingExternalId(
+  db: Database.Database,
+  brandId: string
+): Array<{ id: number; caption: string; posted_at: string | null }> {
+  return db
+    .prepare(
+      `SELECT id, caption, posted_at FROM posts
+       WHERE brand_id = ? AND (external_post_id IS NULL OR external_post_id = '')
+       ORDER BY id DESC`
+    )
+    .all(brandId) as Array<{ id: number; caption: string; posted_at: string | null }>;
+}
+
+export function getPostsWithExternalId(
+  db: Database.Database,
+  brandId: string
+): Array<{ id: number; external_post_id: string; posted_at: string | null }> {
+  return db
+    .prepare(
+      `SELECT id, external_post_id, posted_at FROM posts
+       WHERE brand_id = ? AND external_post_id IS NOT NULL AND external_post_id != ''
+       ORDER BY id DESC`
+    )
+    .all(brandId) as Array<{
+    id: number;
+    external_post_id: string;
+    posted_at: string | null;
+  }>;
+}
+
+export function setExternalPostId(
+  db: Database.Database,
+  postId: number,
+  externalPostId: string
+): void {
+  db.prepare(`UPDATE posts SET external_post_id = ? WHERE id = ?`).run(
+    externalPostId,
+    postId
+  );
+}
+
+// Returns the LATEST analytics snapshot per post (one row per post), newest posts
+// first. Avoids returning multiple rows for the same post when ingestion has run
+// several times.
+// Returns the LATEST analytics snapshot per post (one row per post), newest posts
+// first. Avoids returning multiple rows for the same post when ingestion has run
+// several times.
 export function getPostPerformance(
   db: Database.Database,
   brandId: string,
@@ -149,16 +206,35 @@ export function getPostPerformance(
 ): PerformanceRow[] {
   return db
     .prepare(
-      `SELECT p.caption, p.content_theme, p.posted_at,
+      `SELECT p.id AS post_id, p.external_post_id, p.caption, p.content_theme, p.posted_at,
+              p.is_outlier, p.notes,
               a.likes, a.comments, a.shares, a.reach, a.impressions,
-              a.profile_visits, a.link_clicks, a.measured_at
+              a.views, a.saves, a.profile_visits, a.link_clicks, a.measured_at
        FROM posts p
        JOIN analytics a ON a.post_id = p.id
+       JOIN (
+         SELECT post_id, MAX(measured_at) AS latest
+         FROM analytics
+         GROUP BY post_id
+       ) latest ON latest.post_id = a.post_id AND latest.latest = a.measured_at
        WHERE p.brand_id = ?
-       ORDER BY a.measured_at DESC
+       ORDER BY p.posted_at DESC, p.id DESC
        LIMIT ?`
     )
     .all(brandId, limit) as PerformanceRow[];
+}
+
+export function setPostOutlier(
+  db: Database.Database,
+  postId: number,
+  isOutlier: boolean,
+  notes: string | null
+): void {
+  db.prepare(`UPDATE posts SET is_outlier = ?, notes = ? WHERE id = ?`).run(
+    isOutlier ? 1 : 0,
+    notes,
+    postId
+  );
 }
 
 export function insertCompetitorSnapshot(

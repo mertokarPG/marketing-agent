@@ -44,7 +44,9 @@ describe("schedulePost", () => {
       scheduledTime: "2026-04-12T10:00:00Z",
     });
 
-    expect(result).toContain("post-123");
+    expect(result.ok).toBe(true);
+    expect(result.postizId).toBe("post-123");
+    expect(result.message).toContain("post-123");
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
@@ -57,8 +59,8 @@ describe("schedulePost", () => {
       images: ["https://example.com/img.jpg"],
     });
 
-    expect(result).toContain("successfully");
-    // Check the post body has type "now"
+    expect(result.ok).toBe(true);
+    expect(result.message).toContain("successfully");
     const postCall = mockFetch.mock.calls[2];
     const body = JSON.parse(postCall[1].body);
     expect(body.type).toBe("now");
@@ -92,8 +94,9 @@ describe("schedulePost", () => {
       images: ["https://example.com/img.jpg"],
     });
 
-    expect(result).toContain("Failed");
-    expect(result).toContain("400");
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Failed");
+    expect(result.message).toContain("400");
   });
 
   it("returns error when no Instagram integration found", async () => {
@@ -108,7 +111,8 @@ describe("schedulePost", () => {
       images: ["https://example.com/img.jpg"],
     });
 
-    expect(result).toContain("No Instagram integration found");
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("No Instagram integration found");
   });
 
   it("returns message when API key not configured", async () => {
@@ -120,7 +124,8 @@ describe("schedulePost", () => {
       images: ["https://example.com/img.jpg"],
     });
 
-    expect(result).toContain("not configured");
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("not configured");
   });
 
   it("uploads multiple images for carousel post", async () => {
@@ -159,7 +164,9 @@ describe("schedulePost", () => {
       ],
     });
 
-    expect(result).toContain("carousel-123");
+    expect(result.ok).toBe(true);
+    expect(result.postizId).toBe("carousel-123");
+    expect(result.message).toContain("carousel-123");
     expect(mockFetch).toHaveBeenCalledTimes(4);
 
     const postCall = mockFetch.mock.calls[3];

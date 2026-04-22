@@ -33,18 +33,20 @@ describe("dry run", () => {
     }
 
     // Test the SQLite tools directly (no external deps)
-    const recentPostsTool = tools.find((t) => t.name === "get_recent_posts");
+    // tools.find() returns the union tool type, whose run() args collapse to
+    // never — cast to any for per-tool invocation in the test.
+    const recentPostsTool = tools.find((t) => t.name === "get_recent_posts") as any;
     const result = await recentPostsTool!.run({ limit: 5 });
     expect(typeof result).toBe("string");
     expect(result).toContain("No recent posts");
 
-    const perfTool = tools.find((t) => t.name === "get_post_performance");
+    const perfTool = tools.find((t) => t.name === "get_post_performance") as any;
     const perfResult = await perfTool!.run({ limit: 5 });
     expect(typeof perfResult).toBe("string");
     expect(perfResult).toContain("No performance data");
 
     // Test notification (console fallback)
-    const notifyTool = tools.find((t) => t.name === "send_notification");
+    const notifyTool = tools.find((t) => t.name === "send_notification") as any;
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const notifyResult = await notifyTool!.run({
       subject: "Test",

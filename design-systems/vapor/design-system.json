@@ -1,0 +1,18 @@
+{
+  "id": "vapor",
+  "name": "Vapor",
+  "description": "Soft · dream. Gloock serif + Outfit body, lavender and soft plum. Dreamy, romantic, wellness/beauty-ready.",
+  "engine": "react-jsx",
+  "templateName": "VaporTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Gloock&family=Outfit:wght@300..700&family=JetBrains+Mono:wght@300..700&display=swap",
+  "fonts": {
+    "display": "'Gloock', 'Cormorant Garamond', serif",
+    "body": "'Outfit', system-ui, sans-serif",
+    "mono": "'JetBrains Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#f4e9f0", "ink": "#2a2040", "accent": "#a85fc2", "muted": "#8a7698", "rule": "#ddc8dc" },
+    "dark":  { "bg": "#1a1028", "ink": "#f4e9f0", "accent": "#e09cff", "muted": "#8a7a9a", "rule": "#3a2a4a" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

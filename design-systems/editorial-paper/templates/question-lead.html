@@ -3,31 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <style>
-  @font-face {
-    font-family: 'Instrument Serif';
-    font-style: normal;
-    src: url('__FONT_SERIF_REGULAR__') format('truetype');
-  }
-  @font-face {
-    font-family: 'Instrument Serif';
-    font-style: italic;
-    src: url('__FONT_SERIF_ITALIC__') format('truetype');
-  }
-  @font-face {
-    font-family: 'Geist';
-    font-weight: 400;
-    src: url('__FONT_SANS_REGULAR__') format('truetype');
-  }
-  @font-face {
-    font-family: 'Geist';
-    font-weight: 700;
-    src: url('__FONT_SANS_BOLD__') format('truetype');
-  }
-  @font-face {
-    font-family: 'Geist';
-    font-weight: 900;
-    src: url('__FONT_SANS_BLACK__') format('truetype');
-  }
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -45,7 +25,7 @@
     position: relative;
     width: 1080px;
     height: 1350px;
-    padding: 72px 100px 72px 140px;
+    padding: 72px 80px;
     overflow: hidden;
   }
 
@@ -62,92 +42,81 @@
     z-index: 1;
   }
 
-  /* Thick accent rule on left edge — the defining quote-hero element */
-  .canvas::before {
-    content: '';
-    position: absolute;
-    top: 140px;
-    bottom: 140px;
-    left: 72px;
-    width: 6px;
-    background: var(--accent);
-    z-index: 2;
-  }
-
-  /* Oversized opening quotation mark */
-  .canvas::after {
-    content: '\201C';
-    position: absolute;
-    left: 88px;
-    top: 50px;
-    font-family: 'Instrument Serif', serif;
-    font-size: 360px;
-    line-height: 1;
-    color: var(--accent);
-    opacity: 0.35;
-    pointer-events: none;
-    user-select: none;
-    z-index: 1;
-  }
-
   .kicker {
     font-family: 'Geist', sans-serif;
     font-weight: 700;
-    font-size: 20px;
+    font-size: 22px;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: var(--accent);
-    margin-top: 220px;
+    margin-top: 120px;
     margin-bottom: 40px;
     position: relative;
     z-index: 2;
+  }
+
+  /* Enormous accent question mark — the defining visual element */
+  .canvas::before {
+    content: '?';
+    position: absolute;
+    right: -120px;
+    top: 40px;
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 1100px;
+    line-height: 0.8;
+    color: var(--accent);
+    opacity: 0.18;
+    pointer-events: none;
+    user-select: none;
+    z-index: 0;
   }
 
   .headline {
     font-family: 'Instrument Serif', serif;
     font-weight: 400;
     font-style: italic;
-    font-size: 108px;
-    line-height: 1.08;
-    letter-spacing: -0.01em;
+    font-size: 132px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
     color: __TEXT_COLOR__;
     max-width: 820px;
     position: relative;
     z-index: 2;
   }
 
-  /* If the renderer inserts an accent span, let it shine in color but keep italic */
   .headline .accent {
     color: var(--accent);
     font-style: italic;
     display: inline;
   }
 
+  /* Answer tease — chip backdrop + full-contrast text so it reads on
+     busy/dark gradients (previously faint @ 0.75 opacity on aurora). */
   .subtitle {
     font-family: 'Geist', sans-serif;
-    font-weight: 700;
-    font-size: 26px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: __SUBTITLE_COLOR__;
-    margin-top: 56px;
+    font-weight: 600;
+    font-size: 28px;
+    line-height: 1.4;
+    color: __TEXT_COLOR__;
+    margin-top: 48px;
     max-width: 700px;
     position: relative;
     z-index: 2;
+    padding: 20px 28px 20px 28px;
+    border-left: 4px solid var(--accent);
+    background: __PAGE_INDICATOR_BG__;
+    border-radius: 0 14px 14px 0;
+    display: inline-block;
+    backdrop-filter: blur(6px);
   }
 
-  .subtitle::before {
-    content: '\2014  ';
-    color: var(--accent);
-  }
-
-  /* decorative-char and sticker intentionally unused for this layout; hide if injected */
   .decorative-char, .sticker { display: none; }
 
   .footer {
     position: absolute;
     bottom: 48px;
-    left: 140px;
+    left: 80px;
     right: 80px;
     display: flex;
     align-items: center;

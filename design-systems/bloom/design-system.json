@@ -1,0 +1,18 @@
+{
+  "id": "bloom",
+  "name": "Bloom",
+  "description": "Warm, approachable. Caprasimo display + DM Sans body, burgundy-pink accent. Friendly, beauty/lifestyle/hospitality-ready.",
+  "engine": "react-jsx",
+  "templateName": "BloomTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Caprasimo&family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=DM+Sans:wght@300..700&family=DM+Mono:wght@300..500&display=swap",
+  "fonts": {
+    "display": "'Caprasimo', 'Fraunces', serif",
+    "body": "'DM Sans', system-ui, sans-serif",
+    "mono": "'DM Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#fce9d8", "ink": "#3a1a2a", "accent": "#7a2450", "muted": "#8a6375", "rule": "#ecd2bc" },
+    "dark":  { "bg": "#2a0e1c", "ink": "#fce9d8", "accent": "#f2a4c4", "muted": "#b38ea0", "rule": "#4a2035" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

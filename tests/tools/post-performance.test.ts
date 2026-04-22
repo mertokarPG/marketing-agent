@@ -22,6 +22,8 @@ beforeEach(() => {
     shares: 10,
     reach: 5000,
     impressions: 8000,
+    views: 12000,
+    saves: 34,
     profile_visits: 50,
     link_clicks: 15,
   });

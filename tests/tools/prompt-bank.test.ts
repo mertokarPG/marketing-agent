@@ -30,26 +30,26 @@ writeFileSync(tmpPath, JSON.stringify(testPrompts));
 
 describe("browsePromptBank", () => {
   it("returns all prompts when no category filter", () => {
-    const result = browsePromptBank(tmpPath, "test.com");
+    const result = browsePromptBank(tmpPath, "test.com", undefined, new Set());
     expect(result).toContain("Studio Portrait");
     expect(result).toContain("Street Fashion");
     expect(result).toContain("2 items");
   });
 
   it("filters by category", () => {
-    const result = browsePromptBank(tmpPath, "test.com", "portrait");
+    const result = browsePromptBank(tmpPath, "test.com", "portrait", new Set());
     expect(result).toContain("Studio Portrait");
     expect(result).not.toContain("Street Fashion");
     expect(result).toContain("category: portrait");
   });
 
   it("returns public URLs with domain", () => {
-    const result = browsePromptBank(tmpPath, "test.com", "portrait");
+    const result = browsePromptBank(tmpPath, "test.com", "portrait", new Set());
     expect(result).toContain("https://test.com/promptbank/images/test1.webp");
   });
 
   it("shows available categories for invalid filter", () => {
-    const result = browsePromptBank(tmpPath, "test.com", "nonexistent");
+    const result = browsePromptBank(tmpPath, "test.com", "nonexistent", new Set());
     expect(result).toContain("No prompts found");
     expect(result).toContain("portrait");
     expect(result).toContain("fashion");

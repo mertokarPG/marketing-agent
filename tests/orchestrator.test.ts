@@ -51,9 +51,12 @@ describe("buildTools", () => {
       },
     };
     const tools = buildTools(brandWithBranding, db);
-    expect(tools.map((t) => t.name)).toContain("brand_image");
-    expect(tools.map((t) => t.name)).toContain("brand_carousel");
-    expect(tools).toHaveLength(8);
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("brand_image");
+    expect(names).toContain("brand_carousel");
+    expect(names).toContain("carousel_cover");
+    expect(names).toContain("body_slide");
+    expect(names).toContain("photo_overlay");
     db.close();
   });
 

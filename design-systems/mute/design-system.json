@@ -1,0 +1,18 @@
+{
+  "id": "mute",
+  "name": "Mute",
+  "description": "Quiet, premium. Instrument Serif + Geist, sage-green accents, whisper-soft palettes. Understated luxury, high-end wellness or editorial lifestyle feel.",
+  "engine": "react-jsx",
+  "templateName": "MuteTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap",
+  "fonts": {
+    "display": "'Instrument Serif', 'Cormorant Garamond', serif",
+    "body": "'Geist', 'Inter', system-ui, sans-serif",
+    "mono": "'Geist Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#f7f5ef", "ink": "#1f2a24", "accent": "#2e4a3a", "muted": "#8a8a80", "rule": "#e0ddd4" },
+    "dark":  { "bg": "#1a2320", "ink": "#f0ece4", "accent": "#8fb89e", "muted": "#8a9590", "rule": "#2f3a35" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

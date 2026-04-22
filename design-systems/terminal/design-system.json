@@ -1,0 +1,18 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "description": "CRT · monospace. VT323 + IBM Plex Mono, phosphor green on black. Reads like a late-80s terminal or hacker zine — great for tech, indie software, CLI-adjacent content.",
+  "engine": "react-jsx",
+  "templateName": "TerminalTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=VT323&family=IBM+Plex+Mono:wght@300..600&display=swap",
+  "fonts": {
+    "display": "'VT323', 'Courier New', monospace",
+    "body": "'IBM Plex Mono', ui-monospace, monospace",
+    "mono": "'IBM Plex Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#e6f0dc", "ink": "#0c2010", "accent": "#1a8a2e", "muted": "#6a7a68", "rule": "#a8b8a0" },
+    "dark":  { "bg": "#050a08", "ink": "#3aff6a", "accent": "#a0ff3a", "muted": "#3a7a4a", "rule": "#1a3a20" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

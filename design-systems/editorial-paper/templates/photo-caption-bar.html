@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    background: #111;
+  }
+
+  .photo-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .photo-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Top gradient scrim so handle/logo sits on readable darkness */
+  .top-scrim {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 180px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0));
+    z-index: 1;
+  }
+
+  /* Bottom cream caption bar */
+  .caption-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #f4efe8;
+    padding: 72px 100px 64px 100px;
+    z-index: 2;
+  }
+
+  .kicker {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.26em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 3px solid var(--accent);
+    display: inline-block;
+  }
+
+  .headline {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-style: normal;
+    font-size: 70px;
+    line-height: 1.04;
+    letter-spacing: -0.015em;
+    color: #111111;
+    max-width: 880px;
+    margin-bottom: 24px;
+  }
+
+  .headline .accent {
+    color: var(--accent);
+    font-style: italic;
+  }
+
+  .subtitle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 400;
+    font-size: 26px;
+    line-height: 1.4;
+    color: #333333;
+    max-width: 820px;
+  }
+
+  .footer-top {
+    position: absolute;
+    top: 44px;
+    left: 48px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 3;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.45);
+  }
+
+  .handle img { width: 26px; height: 26px; filter: brightness(0) invert(1); }
+
+  .logo {
+    height: 40px;
+    width: auto;
+    filter: brightness(0) invert(1);
+    opacity: 0.95;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 44px;
+    right: 48px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: #ffffff;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(6px);
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 4;
+  }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="photo-bg">__PHOTO_BG__</div>
+  <div class="top-scrim"></div>
+
+  <div class="footer-top">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+  __PAGE_INDICATOR__
+
+  <div class="caption-bar">
+    __KICKER__
+    <h1 class="headline">__HEADLINE__</h1>
+    __SUBTITLE__
+  </div>
+</div>
+</body>
+</html>

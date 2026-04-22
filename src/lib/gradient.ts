@@ -241,7 +241,8 @@ export async function renderGradientPng(
     const page = await browser.newPage();
     await page.setViewport({ width, height, deviceScaleFactor: 1 });
     await page.setContent(html, { waitUntil: "networkidle0", timeout: 15000 });
-    return (await page.screenshot({ type: "png", omitBackground: false, timeout: 20000 })) as Buffer;
+    const buf = await page.screenshot({ type: "png", omitBackground: false });
+    return Buffer.from(buf);
   } finally {
     await browser.close();
   }

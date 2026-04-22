@@ -1,0 +1,18 @@
+{
+  "id": "bauhaus",
+  "name": "Bauhaus",
+  "description": "Geometric · primary. Archivo Black display, primary-red/yellow accents on cream or ink. Hard edges, geometric shapes, 1920s-poster directness.",
+  "engine": "react-jsx",
+  "templateName": "BauhausTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@300..700&family=Space+Mono:wght@400;700&display=swap",
+  "fonts": {
+    "display": "'Archivo Black', 'Futura', sans-serif",
+    "body": "'Archivo', system-ui, sans-serif",
+    "mono": "'Space Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#f0ece4", "ink": "#0a0a0a", "accent": "#e63b1e", "muted": "#707070", "rule": "#0a0a0a" },
+    "dark":  { "bg": "#0a0a0a", "ink": "#f0ece4", "accent": "#ffcc00", "muted": "#8a8a8a", "rule": "#f0ece4" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

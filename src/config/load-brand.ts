@@ -50,6 +50,7 @@ const BrandConfigSchema = z.object({
   }),
   promptBankPath: z.string().optional(),
   instagramHandle: z.string().optional(),
+  designSystem: z.string().optional(),
   branding: BrandingSchema.optional(),
   carousel: CarouselSchema.optional(),
 });

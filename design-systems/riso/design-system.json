@@ -1,0 +1,18 @@
+{
+  "id": "riso",
+  "name": "Riso",
+  "description": "Print · overprint. Syne display + Courier Prime, indigo ink with vermilion accent on warm cream. Risograph-print feel — graphic, hand-made, poster-like.",
+  "engine": "react-jsx",
+  "templateName": "RisoTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Syne:wght@400..800&family=Courier+Prime:wght@400;700&display=swap",
+  "fonts": {
+    "display": "'Syne', 'Archivo Black', sans-serif",
+    "body": "'Syne', system-ui, sans-serif",
+    "mono": "'Courier Prime', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#f3ecd8", "ink": "#2b2a6e", "accent": "#e74b3c", "muted": "#6a6896", "rule": "#c8c2a8" },
+    "dark":  { "bg": "#1a1a42", "ink": "#f3ecd8", "accent": "#ff6a3d", "muted": "#8a86b0", "rule": "#302e58" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

@@ -52,6 +52,8 @@ describe("analytics", () => {
       shares: 5,
       reach: 1000,
       impressions: 1500,
+      views: 2000,
+      saves: 12,
       profile_visits: 20,
       link_clicks: 8,
     });

@@ -1,0 +1,18 @@
+{
+  "id": "atelier",
+  "name": "Atelier",
+  "description": "Editorial, warm. Large italic serif titles, generous margins, rule lines. Magazine-editorial aesthetic with cream and deep-warm palettes.",
+  "engine": "react-jsx",
+  "templateName": "AtelierTemplate",
+  "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Inter:wght@300..700&family=JetBrains+Mono:wght@300..700&display=swap",
+  "fonts": {
+    "display": "'Fraunces', 'Times New Roman', serif",
+    "body": "'Inter', system-ui, sans-serif",
+    "mono": "'JetBrains Mono', ui-monospace, monospace"
+  },
+  "palettes": {
+    "light": { "bg": "#efe8dc", "ink": "#1a1814", "accent": "#b84a2a", "muted": "#7a6f5e", "rule": "#cdc4b3" },
+    "dark":  { "bg": "#1a1814", "ink": "#efe8dc", "accent": "#e8784f", "muted": "#a89a86", "rule": "#3a342b" }
+  },
+  "slideKinds": ["cover", "intro", "numbered", "stat", "list", "image", "cta"]
+}

@@ -1,0 +1,41 @@
+{
+  "id": "editorial-paper",
+  "name": "Editorial Paper",
+  "description": "Cream-and-dark editorial typography system. Pairs Instrument Serif (display + accent italic) with Geist (sans + bold). Features grainy gradient backgrounds, corner registration marks, hatched spec annotations, and a top-of-slide carousel progress bar. Good for design-magazine, premium, architectural, or design-spec aesthetics.",
+  "fonts": {
+    "serifRegular": "assets/fonts/InstrumentSerif-Regular.ttf",
+    "serifItalic": "assets/fonts/InstrumentSerif-Italic.ttf",
+    "sansRegular": "assets/fonts/Geist-Regular.ttf",
+    "sansBold": "assets/fonts/Geist-Bold.ttf",
+    "sansBlack": "assets/fonts/Geist-Black.ttf"
+  },
+  "defaultAccentPalette": ["#c1272d", "#e14ece", "#6c3ce1", "#2d6cff", "#11a870", "#ff7a1a"],
+  "templates": {
+    "cover": [
+      "headline-accent",
+      "quote-hero",
+      "stat-drop",
+      "question-lead",
+      "split-compare",
+      "kicker-led",
+      "dark-hero-cover",
+      "cream-numeric-cover",
+      "spec-annotated-cover"
+    ],
+    "body": [
+      "body-list-item",
+      "body-pullout",
+      "body-quote",
+      "body-caption-led",
+      "dark-list-body",
+      "dark-bold-body",
+      "dark-compare-body"
+    ],
+    "photoOverlay": [
+      "photo-caption-bar",
+      "photo-quote-center",
+      "photo-editorial-stack",
+      "photo-chip-corner"
+    ]
+  }
+}
