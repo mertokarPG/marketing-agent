@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    background: #111;
+  }
+
+  .photo-bg { position: absolute; inset: 0; z-index: 0; }
+  .photo-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Heavier scrim — full prompt text needs strong contrast */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.7) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0.55));
+    z-index: 1;
+  }
+
+  /* Header chrome (white text on dim photo edges) */
+  .footer-top {
+    position: absolute;
+    top: 44px;
+    left: 48px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 5;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.55);
+  }
+  .handle img { width: 26px; height: 26px; filter: brightness(0) invert(1); }
+
+  .logo {
+    height: 40px;
+    width: auto;
+    filter: brightness(0) invert(1);
+    opacity: 0.95;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 44px;
+    right: 48px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: #ffffff;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(6px);
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 6;
+  }
+
+  /* The hero overlay card */
+  .card {
+    position: absolute;
+    top: 132px;
+    bottom: 132px;
+    left: 60px;
+    right: 60px;
+    background: #f4efe8;
+    padding: 56px 62px 56px 62px;
+    z-index: 3;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.55);
+    border-radius: 2px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Tape strip / hatched header detail */
+  .card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 6px;
+    width: 160px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--accent) 0 8px,
+      transparent 8px 14px
+    );
+  }
+
+  .card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+    padding-bottom: 22px;
+    border-bottom: 1.5px solid #1a1a1a;
+  }
+
+  .card-head .label {
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 18px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .card-head .label::before {
+    content: "✦";
+    margin-right: 10px;
+    letter-spacing: 0;
+  }
+
+  .card-head .model-badge {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #111;
+    border: 1.5px solid #111;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+
+  .prompt-title {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-style: normal;
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.01em;
+    color: #111;
+    margin-bottom: 18px;
+  }
+
+  .prompt-id {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #777;
+    margin-bottom: 22px;
+  }
+
+  /* Prompt body — wraps long text; size auto-scales via JS-free CSS clamp + line-clamp safety */
+  .prompt-body {
+    flex: 1;
+    font-family: 'Geist', sans-serif;
+    font-weight: 400;
+    font-size: __PROMPT_FONT_SIZE__;
+    line-height: 1.42;
+    color: #1c1c1c;
+    overflow: hidden;
+    position: relative;
+    /* Hanging-indent quote feel via left rule */
+    padding-left: 22px;
+    border-left: 3px solid var(--accent);
+  }
+
+  .prompt-body::first-letter {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--accent);
+    font-size: 1.6em;
+    line-height: 0.9;
+    padding-right: 4px;
+  }
+
+  /* Bottom row: source link + copy CTA */
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 22px;
+    padding-top: 22px;
+    border-top: 1.5px dashed rgba(17,17,17,0.25);
+  }
+
+  .source {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-size: 22px;
+    color: #333;
+  }
+  .source strong {
+    font-style: normal;
+    color: #111;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .copy-cta {
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #fff;
+    background: #111;
+    padding: 12px 22px;
+    border-radius: 999px;
+  }
+
+  /* Footer brand row */
+  .footer {
+    position: absolute;
+    bottom: 44px;
+    left: 60px;
+    right: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 4;
+  }
+  .footer .handle img { width: 24px; height: 24px; }
+  .footer .handle { font-size: 20px; }
+  .footer .logo { height: 34px; }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="photo-bg">__PHOTO_BG__</div>
+  <div class="scrim"></div>
+
+  <div class="footer-top">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+  __PAGE_INDICATOR__
+
+  <div class="card">
+    <div class="card-head">
+      <span class="label">The Prompt</span>
+      __MODEL_BADGE__
+    </div>
+    __PROMPT_TITLE_BLOCK__
+    __PROMPT_ID_BLOCK__
+    <div class="prompt-body">__PROMPT_TEXT__</div>
+    <div class="card-foot">
+      <div class="source">From the <strong>carephoto.art</strong> prompt bank</div>
+      <div class="copy-cta">Tap to copy →</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

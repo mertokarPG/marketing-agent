@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face { font-family: 'Instrument Serif'; font-style: normal; src: url('__FONT_SERIF_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('__FONT_SERIF_ITALIC__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 400; src: url('__FONT_SANS_REGULAR__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 700; src: url('__FONT_SANS_BOLD__') format('truetype'); }
+  @font-face { font-family: 'Geist'; font-weight: 900; src: url('__FONT_SANS_BLACK__') format('truetype'); }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1080px;
+    height: 1350px;
+    font-family: 'Geist', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .canvas {
+    position: relative;
+    width: 1080px;
+    height: 1350px;
+    overflow: hidden;
+    background: #111;
+  }
+
+  .photo-bg { position: absolute; inset: 0; z-index: 0; }
+  .photo-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  /* Top scrim for chrome legibility + bottom scrim to anchor the card */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to bottom,
+        rgba(0,0,0,0.55) 0%,
+        rgba(0,0,0,0.15) 22%,
+        rgba(0,0,0,0) 45%,
+        rgba(0,0,0,0.35) 70%,
+        rgba(0,0,0,0.75) 100%);
+    z-index: 1;
+  }
+
+  /* Header chrome */
+  .footer-top {
+    position: absolute;
+    top: 44px;
+    left: 48px;
+    right: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 4;
+  }
+
+  .handle {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.55);
+  }
+  .handle img { width: 26px; height: 26px; filter: brightness(0) invert(1); }
+
+  .logo {
+    height: 40px;
+    width: auto;
+    filter: brightness(0) invert(1);
+    opacity: 0.95;
+  }
+
+  .page-indicator {
+    position: absolute;
+    top: 44px;
+    right: 48px;
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 18px;
+    color: #ffffff;
+    background: rgba(0,0,0,0.35);
+    backdrop-filter: blur(6px);
+    padding: 8px 16px;
+    border-radius: 20px;
+    z-index: 5;
+  }
+
+  /* Floating "FREE PROMPT" ribbon top-left, slightly rotated, accent color */
+  .ribbon {
+    position: absolute;
+    top: 130px;
+    left: 60px;
+    z-index: 3;
+    transform: rotate(-3deg);
+    background: var(--accent);
+    color: #fff;
+    font-family: 'Geist', sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    padding: 12px 22px;
+    box-shadow: 0 14px 28px rgba(0,0,0,0.35);
+    border-radius: 4px;
+  }
+  .ribbon::before {
+    content: "✦";
+    margin-right: 10px;
+    letter-spacing: 0;
+  }
+
+  /* Editorial overlay card pinned to lower portion */
+  .card {
+    position: absolute;
+    left: 60px;
+    right: 60px;
+    bottom: 132px;
+    background: #f4efe8;
+    padding: 56px 62px 48px 62px;
+    z-index: 3;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.45);
+    border-radius: 2px;
+  }
+
+  /* Hatched detail strip — design-magazine cue */
+  .card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 6px;
+    width: 120px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--accent) 0 8px,
+      transparent 8px 14px
+    );
+  }
+
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+
+  .card-meta .kicker {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .card-meta .model-badge {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #111;
+    border: 1.5px solid #111;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+
+  .prompt-title {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-style: normal;
+    font-size: 78px;
+    line-height: 1.0;
+    letter-spacing: -0.015em;
+    color: #111;
+    margin-bottom: 28px;
+  }
+  .prompt-title em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .swipe-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1.5px dashed #1a1a1a40;
+    padding-top: 22px;
+  }
+
+  .swipe-hint {
+    font-family: 'Geist', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #111;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .swipe-hint .arrow {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 44px;
+    line-height: 1;
+    color: var(--accent);
+    transform: translateY(-4px);
+  }
+
+  .swipe-aside {
+    font-family: 'Instrument Serif', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 22px;
+    color: #555;
+    text-align: right;
+    max-width: 260px;
+    line-height: 1.15;
+  }
+
+  /* Footer brand row outside the card */
+  .footer {
+    position: absolute;
+    bottom: 44px;
+    left: 60px;
+    right: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 4;
+  }
+
+  .footer .handle img { width: 24px; height: 24px; }
+  .footer .handle { font-size: 20px; }
+  .footer .logo { height: 34px; }
+</style>
+</head>
+<body>
+<div class="canvas" style="--accent: __ACCENT_COLOR__;">
+  <div class="photo-bg">__PHOTO_BG__</div>
+  <div class="scrim"></div>
+
+  <div class="footer-top">
+    <div class="handle">
+      __IG_ICON__
+      <span>@__HANDLE__</span>
+    </div>
+    __LOGO__
+  </div>
+  __PAGE_INDICATOR__
+
+  <div class="ribbon">__RIBBON__</div>
+
+  <div class="card">
+    <div class="card-meta">
+      <span class="kicker">__KICKER__</span>
+      __MODEL_BADGE__
+    </div>
+    <h1 class="prompt-title">__PROMPT_TITLE__</h1>
+    <div class="swipe-row">
+      <div class="swipe-hint">
+        <span>__SWIPE_HINT__</span>
+        <span class="arrow">→</span>
+      </div>
+      __SWIPE_ASIDE__
+    </div>
+  </div>
+</div>
+</body>
+</html>

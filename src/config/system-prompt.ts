@@ -119,6 +119,19 @@ Carousel assembly (CRITICAL — avoids double-branding):
 - Final call: schedule_post({ images: [coverPath, slide2Path, ..., slideNPath] })
 - Use brand_carousel ONLY when you have no carousel_cover and want a pure photo carousel
 
+Prompt Share post type (NEW — special carousel format for sharing a prompt-bank prompt with the audience):
+- WHAT IT IS: a 5-slide carousel that gives away ONE prompt-bank prompt as a free creative gift. Slide 1 teases "scroll for the prompt"; slides 2-4 are pure photo variations rendered from that same prompt; slide 5 reveals the full prompt text overlaid on a final image. The post's whole value is the prompt — the imagery proves what it produces.
+- WHEN TO USE: as a recurring "give value freely" pillar — works once per week or per 10-14 day window. Strong fit for Saturday morning (considered save-this energy), Sunday morning (quiet aesthetic), or Tuesday/Wednesday (educational tactical). Bad fit for Saturday-night magnetic slots or pure trend-reaction days. Treat it as an Educational-pillar variant — count it against that pillar's weekly cap.
+- WHAT MAKES A GOOD CANDIDATE PROMPT: pick one prompt from the prompt bank that (a) is visually striking, (b) is detailed enough to be worth giving away (avoid the 8-word minimal prompts), and (c) has a clean aesthetic — fashion / editorial / lifestyle / architectural categories work best. AVOID the lingerie category for this format. PLACEHOLDER PROMPTS (containing [YOUR PERSONA], [BRAND], [COLOR], or {VAR_NAME}) ARE EXCELLENT candidates because the audience can substitute their own subject — these are the most useful to share. If a prompt has placeholders, mention in the caption that they're fill-in-the-blank and the viewer can replace [YOUR PERSONA] with themselves or their character.
+- IMAGE PLAN: render 5 fresh generations of the chosen prompt with generate_image, using the model recommended by compose_image_prompt (or the model field from the prompt bank entry, if you want to faithfully demonstrate the suggested model). All 5 images come from the SAME prompt — that's the point of the format. Budget: 5 generations × ~$0.04 ≈ $0.20 per post; counts inside the $0.40 generated-slide budget cap.
+- SLIDE LAYOUT (use these exact tools):
+  * Slide 1: photo_overlay({ templateId: 'photo-prompt-cover', imageUrl: gen1, promptTitle: <bank.title>, promptModel: <bank.model>, kicker: 'PROMPT INSIDE', ribbonText: 'Free prompt', swipeHint: 'Swipe for the prompt', swipeAside: 'Same prompt, 4 looks', headline: '', pageNumber: 1, totalPages: 5 })
+  * Slides 2-4: brand_image({ imageUrl: gen2/3/4, textOverlay: null, pageNumber: 2/3/4, totalPages: 5 }) — pure photo, no text overlay; let the imagery speak.
+  * Slide 5: photo_overlay({ templateId: 'photo-prompt-card', imageUrl: gen5, promptTitle: <bank.title>, promptId: <bank.id>, promptModel: <bank.model>, promptText: <bank.prompt FULL TEXT>, headline: '', pageNumber: 5, totalPages: 5 })
+- CAPTION SHAPE: short hook ("Free prompt — swipe to slide 5 for the full thing.") + one line on what the prompt is good for + the model recommendation + a soft prompt-bank mention ("260+ more in the bank at carephoto.art/prompt-bank"). If the prompt has placeholders, say so explicitly in the caption.
+- promptIds[]: REQUIRED — pass the single prompt bank ID in schedule_post.promptIds so the prompt is marked used and future cycles won't share it again.
+- DO NOT use this format more than once per ~10 days — it becomes spammy if used weekly. Rotate with other carousel formats.
+
 body_slide template choice for slides 2-N:
 - 'body-list-item' — numbered tips, listicle points. decorativeChar = '01'/'02' (REQUIRED for this template). headline = short heading. subtitle = body paragraph.
 - 'body-pullout' — mini-insights or key takeaways between sections. headline = italic serif insight sentence. subtitle = supporting paragraph.

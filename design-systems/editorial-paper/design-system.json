@@ -35,7 +35,9 @@
       "photo-caption-bar",
       "photo-quote-center",
       "photo-editorial-stack",
-      "photo-chip-corner"
+      "photo-chip-corner",
+      "photo-prompt-cover",
+      "photo-prompt-card"
     ]
   }
 }

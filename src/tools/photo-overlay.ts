@@ -25,7 +25,9 @@ export type PhotoOverlayTemplate =
   | "photo-caption-bar"
   | "photo-quote-center"
   | "photo-editorial-stack"
-  | "photo-chip-corner";
+  | "photo-chip-corner"
+  | "photo-prompt-cover"
+  | "photo-prompt-card";
 
 export interface PhotoOverlayInput {
   templateId: PhotoOverlayTemplate;
@@ -35,6 +37,14 @@ export interface PhotoOverlayInput {
     headline: string;
     accentWord?: string | null;
     subtitle?: string | null;
+    // Prompt-share slots (photo-prompt-cover / photo-prompt-card)
+    promptTitle?: string | null;
+    promptText?: string | null;
+    promptId?: string | null;
+    promptModel?: string | null;
+    ribbonText?: string | null;
+    swipeHint?: string | null;
+    swipeAside?: string | null;
   };
   accentColor?: string | null;
   pageNumber?: number | null;
@@ -161,6 +171,72 @@ export async function renderPhotoOverlay(input: PhotoOverlayInput): Promise<stri
     "__SUBTITLE__",
     input.slots.subtitle ? `<p class="subtitle">${escapeHtml(input.slots.subtitle)}</p>` : ""
   );
+
+  // Prompt-share slots — only emitted when present so other templates are unaffected.
+  if (html.includes("__PROMPT_TITLE__") || html.includes("__PROMPT_TITLE_BLOCK__")) {
+    const promptTitle = input.slots.promptTitle ?? "";
+    html = html.replaceAll("__PROMPT_TITLE__", escapeHtml(promptTitle));
+    html = html.replaceAll(
+      "__PROMPT_TITLE_BLOCK__",
+      promptTitle
+        ? `<h1 class="prompt-title">${escapeHtml(promptTitle)}</h1>`
+        : ""
+    );
+  }
+
+  if (html.includes("__PROMPT_ID_BLOCK__")) {
+    const id = input.slots.promptId ?? "";
+    html = html.replaceAll(
+      "__PROMPT_ID_BLOCK__",
+      id ? `<div class="prompt-id">#${escapeHtml(id)}</div>` : ""
+    );
+  }
+
+  if (html.includes("__MODEL_BADGE__")) {
+    const m = input.slots.promptModel ?? "";
+    html = html.replaceAll(
+      "__MODEL_BADGE__",
+      m ? `<span class="model-badge">${escapeHtml(m)}</span>` : ""
+    );
+  }
+
+  if (html.includes("__RIBBON__")) {
+    html = html.replaceAll(
+      "__RIBBON__",
+      escapeHtml(input.slots.ribbonText ?? "Free prompt inside")
+    );
+  }
+
+  if (html.includes("__SWIPE_HINT__")) {
+    html = html.replaceAll(
+      "__SWIPE_HINT__",
+      escapeHtml(input.slots.swipeHint ?? "Swipe for the prompt")
+    );
+  }
+
+  if (html.includes("__SWIPE_ASIDE__")) {
+    const aside = input.slots.swipeAside ?? "";
+    html = html.replaceAll(
+      "__SWIPE_ASIDE__",
+      aside ? `<div class="swipe-aside">${escapeHtml(aside)}</div>` : ""
+    );
+  }
+
+  if (html.includes("__PROMPT_TEXT__")) {
+    const text = input.slots.promptText ?? "";
+    // Scale font size so the body fills the card without overflowing.
+    // Card body area ≈ 880 × 660 px; tuned by hand against real prompts.
+    const len = text.length;
+    let fontSize = 26;
+    if (len > 280) fontSize = 24;
+    if (len > 480) fontSize = 22;
+    if (len > 720) fontSize = 20;
+    if (len > 1000) fontSize = 18;
+    if (len > 1400) fontSize = 16;
+    if (len > 1900) fontSize = 14;
+    html = html.replaceAll("__PROMPT_FONT_SIZE__", `${fontSize}px`);
+    html = html.replaceAll("__PROMPT_TEXT__", escapeHtml(text));
+  }
 
   html = html.replaceAll(
     "__PAGE_INDICATOR__",

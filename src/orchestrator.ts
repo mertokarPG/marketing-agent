@@ -537,7 +537,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
           betaZodTool({
             name: "photo_overlay",
             description:
-              "Apply an editorial overlay template to a photo. Use for photo-led single-image posts (or photo slides in a carousel) — produces magazine-quality composition that outperforms brand_image's plain text overlay. Templates: 'photo-caption-bar' (cream caption bar at bottom with serif headline + subtitle — magazine feel), 'photo-quote-center' (centered italic serif quote with cinematic dark scrim — attention-grabbing), 'photo-editorial-stack' (top-left kicker + huge serif headline with gradient scrim — magazine cover), 'photo-chip-corner' (small cream chip at bottom-right — minimal, lets the photo breathe). Returns local PNG path.",
+              "Apply an editorial overlay template to a photo. Use for photo-led single-image posts (or photo slides in a carousel) — produces magazine-quality composition that outperforms brand_image's plain text overlay. Templates: 'photo-caption-bar' (cream caption bar at bottom with serif headline + subtitle — magazine feel), 'photo-quote-center' (centered italic serif quote with cinematic dark scrim — attention-grabbing), 'photo-editorial-stack' (top-left kicker + huge serif headline with gradient scrim — magazine cover), 'photo-chip-corner' (small cream chip at bottom-right — minimal, lets the photo breathe), 'photo-prompt-cover' (PROMPT-SHARE cover slide — photo bg + cream overlay card with the prompt TITLE, model badge, swipe-for-prompt hint, and a tilted 'FREE PROMPT' accent ribbon; use as slide 1 of a Prompt Share carousel), 'photo-prompt-card' (PROMPT-SHARE final slide — photo bg + large cream overlay card holding the FULL PROMPT TEXT with model badge, prompt ID, accent rule, and a 'tap to copy' CTA; use as the last slide of a Prompt Share carousel). Returns local PNG path.",
             inputSchema: z.object({
               templateId: z
                 .enum(requireNonEmpty(designSystem!.templates.photoOverlay, "design system photo overlays"))
@@ -548,22 +548,57 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
               kicker: z
                 .string()
                 .nullable()
-                .describe("Short uppercase label. Used by all templates except 'photo-quote-center' (ignored there). null to omit."),
+                .describe("Short uppercase label. Used by all templates except 'photo-quote-center' (ignored there). For 'photo-prompt-cover' this becomes the small uppercase eyebrow above the prompt title (e.g. 'PROMPT INSIDE', 'TODAY\\'S PROMPT'). null to omit."),
               headline: z
                 .string()
-                .describe("Main text. 'photo-caption-bar' = serif headline (6-12 words). 'photo-quote-center' = italic serif quote (6-18 words). 'photo-editorial-stack' = huge serif headline (4-9 words). 'photo-chip-corner' = short serif line (3-7 words)."),
+                .describe("Main text. 'photo-caption-bar' = serif headline (6-12 words). 'photo-quote-center' = italic serif quote (6-18 words). 'photo-editorial-stack' = huge serif headline (4-9 words). 'photo-chip-corner' = short serif line (3-7 words). For 'photo-prompt-cover' / 'photo-prompt-card' the headline is ignored — pass the prompt title via promptTitle instead. Just send an empty string for those two templates."),
               accentWord: z
                 .string()
                 .nullable()
-                .describe("Word or phrase from headline to emphasize. Must appear in headline. null for no accent."),
+                .describe("Word or phrase from headline to emphasize. Must appear in headline. null for no accent. Ignored by 'photo-prompt-cover' / 'photo-prompt-card'."),
               subtitle: z
                 .string()
                 .nullable()
-                .describe("Supporting line. 'photo-caption-bar' = sans subtitle (0-16 words). 'photo-quote-center' = attribution (auto-prepended em-dash, e.g. 'carephoto.art'). 'photo-editorial-stack' = sans subtitle. 'photo-chip-corner' = tiny caption. null to omit."),
+                .describe("Supporting line. 'photo-caption-bar' = sans subtitle (0-16 words). 'photo-quote-center' = attribution (auto-prepended em-dash, e.g. 'carephoto.art'). 'photo-editorial-stack' = sans subtitle. 'photo-chip-corner' = tiny caption. null to omit. Ignored by 'photo-prompt-cover' / 'photo-prompt-card'."),
+              promptTitle: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share only — the title of the prompt being shared (e.g. 'Elevator — Varsity Jacket Portrait'). REQUIRED for 'photo-prompt-cover' (renders as a huge serif title in the overlay card) and 'photo-prompt-card' (renders as a smaller serif title above the prompt body)."),
+              promptText: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share only — the FULL prompt text. REQUIRED for 'photo-prompt-card' (renders the entire prompt inside the overlay card; font size auto-scales by length up to ~2000 chars). Ignored by other templates."),
+              promptId: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share only — the prompt bank ID (e.g. 'elevator-varsity-jacket'). Optional for 'photo-prompt-card' (renders as '#id' under the title) so viewers can find the prompt in the bank."),
+              promptModel: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share only — the recommended model for this prompt (e.g. 'Flux Pro Kontext Max', 'Nano Banana 2'). Renders as an outlined pill badge in the overlay card on both 'photo-prompt-cover' and 'photo-prompt-card'. Pull this from the prompt bank entry's 'model' field."),
+              ribbonText: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share cover only — the floating accent ribbon copy in the upper-left of 'photo-prompt-cover'. Defaults to 'Free prompt inside'. Keep it short (2-4 words, all caps will be applied)."),
+              swipeHint: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share cover only — the bottom-row CTA on 'photo-prompt-cover'. Defaults to 'Swipe for the prompt'. Will render in caps with an arrow."),
+              swipeAside: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe("Prompt-share cover only — optional small italic aside next to the swipe hint on 'photo-prompt-cover' (e.g. 'Same prompt, 4 looks'). null to omit."),
               accentColor: z
                 .string()
                 .nullable()
-                .describe("Hex color for accent word, kicker, chip label. null picks from brand palette."),
+                .describe("Hex color for accent word, kicker, chip label, prompt-card rule, and ribbon. null picks from brand palette."),
               pageNumber: z.number().nullable().default(null).describe("Page number for indicator (null = no indicator)"),
               totalPages: z.number().nullable().default(null).describe("Total pages for indicator"),
             }),
@@ -576,6 +611,13 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
                   headline: input.headline,
                   accentWord: input.accentWord,
                   subtitle: input.subtitle,
+                  promptTitle: input.promptTitle,
+                  promptText: input.promptText,
+                  promptId: input.promptId,
+                  promptModel: input.promptModel,
+                  ribbonText: input.ribbonText,
+                  swipeHint: input.swipeHint,
+                  swipeAside: input.swipeAside,
                 },
                 accentColor: input.accentColor,
                 pageNumber: input.pageNumber,
