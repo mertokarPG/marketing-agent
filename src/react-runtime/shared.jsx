@@ -31,8 +31,22 @@ function BrandMark({ color = 'currentColor', size = 40, variant = 'quad' }) {
   );
 }
 
-// ── Image placeholder (striped, labeled) ─────────────────────────────────────
-function ImgSlot({ label = 'brand image', color, bg, aspect = '3/4', mono = "monospace" }) {
+// ── Image slot — real image if `src` is given, else striped placeholder ──────
+function ImgSlot({ label = 'brand image', color, bg, aspect = '3/4', mono = "monospace", src }) {
+  if (src) {
+    return (
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        aspectRatio: aspect,
+        backgroundImage: `url("${src}")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundColor: bg,
+        border: `1px solid ${hexWithAlpha(color, 0.18)}`,
+      }} />
+    );
+  }
   return (
     <div style={{
       position: 'relative',

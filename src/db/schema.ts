@@ -54,6 +54,21 @@ export function createDatabase(dbPath: string): Database.Database {
       reasoning TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS trends (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_id TEXT NOT NULL,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      url TEXT NOT NULL UNIQUE,
+      summary TEXT,
+      published_at TEXT,
+      score INTEGER,
+      fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_trends_fetched ON trends(fetched_at);
+    CREATE INDEX IF NOT EXISTS idx_trends_category ON trends(category);
+    CREATE INDEX IF NOT EXISTS idx_trends_source ON trends(source_id);
   `);
 
   migratePostsSourceImages(db);

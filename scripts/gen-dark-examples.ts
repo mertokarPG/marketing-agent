@@ -60,6 +60,18 @@ const examples: Example[] = [
     accentColor: "#8ab4ff",
     note: "Cover — with supporting subtitle",
   },
+  {
+    template: "dark-hero-cover",
+    slots: {
+      kicker: "Creator Tooling",
+      headline: "AI photo tools just hit a $500M moment",
+      accentWord: "moment",
+      subtitle: "ComfyUI raised $30M. The creator toolkit arms race is on.",
+      stickerText: "We're ready",
+    },
+    accentColor: "#1f6feb",
+    note: "Cover — REGRESSION CASE: long wrapped headline + subtitle + sticker (sticker used to overlap headline; fixed by anchoring sticker to bottom-right above footer 2026-04-26)",
+  },
 
   // dark-list-body ————————————————————————————————————
   {

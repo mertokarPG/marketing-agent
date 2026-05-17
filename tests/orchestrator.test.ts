@@ -17,22 +17,54 @@ const mockBrand: BrandConfig = {
 };
 
 describe("buildTools", () => {
-  it("returns 6 tools without promptBankPath or branding", () => {
+  it("does not register optional tools without flags", () => {
     const db = createDatabase(":memory:");
     const tools = buildTools(mockBrand, db);
-    expect(tools).toHaveLength(6);
-    expect(tools.map((t) => t.name)).not.toContain("browse_prompt_bank");
-    expect(tools.map((t) => t.name)).not.toContain("brand_image");
-    expect(tools.map((t) => t.name)).not.toContain("brand_carousel");
+    const names = tools.map((t) => t.name);
+    expect(names).not.toContain("browse_prompt_bank");
+    expect(names).not.toContain("brand_image");
+    expect(names).not.toContain("brand_carousel");
+    expect(names).not.toContain("generate_image");
     db.close();
   });
 
-  it("returns 7 tools with promptBankPath", () => {
+  it("registers browse_prompt_bank when promptBankPath is set", () => {
     const db = createDatabase(":memory:");
     const brandWithBank = { ...mockBrand, promptBankPath: "/tmp/prompts.json" };
     const tools = buildTools(brandWithBank, db);
-    expect(tools).toHaveLength(7);
     expect(tools.map((t) => t.name)).toContain("browse_prompt_bank");
+    db.close();
+  });
+
+  it("registers generate_image when imageGeneration.enabled", () => {
+    const db = createDatabase(":memory:");
+    const brandWithGen: BrandConfig = {
+      ...mockBrand,
+      imageGeneration: {
+        enabled: true,
+        provider: "carephoto",
+        defaultModel: "nano-banana-2",
+        defaultAspectRatio: "4:5",
+      },
+    };
+    const tools = buildTools(brandWithGen, db);
+    expect(tools.map((t) => t.name)).toContain("generate_image");
+    db.close();
+  });
+
+  it("does not register generate_image when imageGeneration.enabled=false", () => {
+    const db = createDatabase(":memory:");
+    const brandDisabled: BrandConfig = {
+      ...mockBrand,
+      imageGeneration: {
+        enabled: false,
+        provider: "carephoto",
+        defaultModel: "nano-banana-2",
+        defaultAspectRatio: "4:5",
+      },
+    };
+    const tools = buildTools(brandDisabled, db);
+    expect(tools.map((t) => t.name)).not.toContain("generate_image");
     db.close();
   });
 

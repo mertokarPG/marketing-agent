@@ -18,12 +18,17 @@ import { loadDesignSystem, type DesignSystem, isHtmlTokens, isReactJsx, type Rea
 import { buildSystemPrompt } from "./config/system-prompt.js";
 import { scrapeCompetitor } from "./tools/scrape-competitor.js";
 import { searchTrends } from "./tools/search-trends.js";
+import { getHotTopics } from "./tools/hot-topics.js";
+import { getTrendingTopics } from "./tools/trending-topics.js";
+import { getBrandLogo } from "./tools/brand-logo.js";
 import { getRecentPostsTool } from "./tools/recent-posts.js";
 import { getPostPerformanceTool } from "./tools/post-performance.js";
 import { schedulePost } from "./tools/schedule-post.js";
 import { sendNotification } from "./tools/notify.js";
 import { browsePromptBank } from "./tools/prompt-bank.js";
 import { brandImage, brandCarousel } from "./tools/brand-image.js";
+import { generateImage } from "./tools/generate-image.js";
+import { composeImagePrompt } from "./tools/compose-image-prompt.js";
 import { renderCarouselCover } from "./tools/carousel-cover.js";
 import { renderPhotoOverlay } from "./tools/photo-overlay.js";
 import { renderReactSlide, type SlideKind } from "./tools/react-slide.js";
@@ -207,6 +212,97 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
     }),
 
     betaZodTool({
+      name: "get_trending_topics",
+      description:
+        "Call this FIRST each cycle to find what topics are actually trending across the internet RIGHT NOW. Unlike get_hot_topics (which returns individual viral posts), this clusters the scraped items into real TOPICS that multiple independent sources are covering — a single funny Reddit post is not a topic, but 'Qwen3.6 launches' appearing on HN + Reddit + blogs is. Returns topics ranked by source diversity and relevance to AI / images / design / photography / creator tooling. Items tagged relevance=high are strong candidates for a trend-reaction post today.",
+      inputSchema: z.object({
+        lookback_hours: z
+          .number()
+          .default(48)
+          .describe("How far back to look. Default 48h."),
+        max_topics: z
+          .number()
+          .default(10)
+          .describe("Max number of clustered topics to return. Default 10."),
+      }),
+      run: async (input) => {
+        return getTrendingTopics(db, brand, {
+          lookback_hours: input.lookback_hours,
+          max_topics: input.max_topics,
+        });
+      },
+    }),
+
+    betaZodTool({
+      name: "get_hot_topics",
+      description:
+        "Read the pre-scraped trends database for what's actually moving RIGHT NOW across curated sources (HN, Reddit, Anthropic/OpenAI blogs, design/photo/brand publications). Items with a score (HN points, Reddit upvotes) are ranked by velocity = score / that source's 90th-percentile baseline — so an item with velocity >= 1.0 is genuinely above its source's normal. Always call this FIRST each cycle — before search_trends, before deciding content strategy. If any burning item (velocity >= 1.0) is relevant to AI / images / design / photography / brands / creator tooling, strongly consider a trend-reaction post today.",
+      inputSchema: z.object({
+        lookback_hours: z
+          .number()
+          .default(48)
+          .describe("How far back to look. Default 48h. Use 24h for same-day reactions."),
+        categories: z
+          .array(z.string())
+          .nullable()
+          .default(null)
+          .describe(
+            "Filter to specific source categories. Categories are free-form strings declared in the brand's hot-topics-sources.json (e.g. 'ai','design','photography' for carephoto; 'skincare','beauty','wellness' for a skincare brand). null = all."
+          ),
+        min_score: z
+          .number()
+          .nullable()
+          .default(null)
+          .describe("Optional minimum raw score floor (HN points / Reddit upvotes). null = no floor."),
+        limit: z
+          .number()
+          .default(20)
+          .describe("Max items to return. Default 20."),
+      }),
+      run: async (input) => {
+        return getHotTopics(db, {
+          lookback_hours: input.lookback_hours,
+          categories: input.categories ?? undefined,
+          min_score: input.min_score ?? undefined,
+          limit: input.limit,
+        });
+      },
+    }),
+
+    betaZodTool({
+      name: "get_brand_logo",
+      description:
+        "Fetch a third-party brand's logo as a local PNG file. Useful for trend-reaction posts that reference a specific brand (e.g. OpenAI's ChatGPT Images 2.0 launch, an Anthropic announcement, a Figma update). Returns a file path that can be passed to render_react_slide / brand_image / brand_carousel as a photo input, or composited onto a slide. Cached to disk after first fetch.",
+      inputSchema: z.object({
+        brand: z
+          .string()
+          .describe(
+            "Brand domain (e.g. 'openai.com', 'anthropic.com', 'figma.com') or name (e.g. 'OpenAI')."
+          ),
+        variant: z
+          .enum(["logo", "symbol", "icon"])
+          .default("logo")
+          .describe(
+            "'logo' = wordmark with text. 'symbol' = just the graphic mark. 'icon' = favicon-style small square. Default 'logo'."
+          ),
+        theme: z
+          .enum(["dark", "light"])
+          .default("dark")
+          .describe(
+            "'dark' = dark-colored logo (use on LIGHT slide backgrounds). 'light' = light-colored logo (use on DARK slide backgrounds). Default 'dark'."
+          ),
+      }),
+      run: async (input) => {
+        const r = await getBrandLogo({
+          brand: input.brand,
+          variant: input.variant,
+          theme: input.theme,
+        });
+        return `Fetched ${r.name} (${r.domain}) logo via ${r.source}. Variant=${r.variant}, theme=${r.theme}. Local path: ${r.filePath}`;
+      },
+    }),
+
+    betaZodTool({
       name: "get_recent_posts",
       description:
         "Get recent posts for the brand to review what content has been published.",
@@ -287,6 +383,94 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
         return result.message;
       },
     }),
+
+    ...(brand.imageGeneration?.enabled
+      ? [
+          betaZodTool({
+            name: "compose_image_prompt",
+            description:
+              "REQUIRED preflight before every generate_image call. Turns the post's intent (what it's about + the visual archetype) into a high-quality, photographer-shootable image prompt AND recommends the best generator model for that prompt. Routes to a fast Haiku specialist trained on photographic prompt-writing — bans cliché tokens like 'creative woman / studio workspace / film grain / cinematic', requires named subject + props + location + light + composition, and ties the photo to the post's actual angle. Returns { prompt, recommendedModel, rationale }. Pass the returned 'prompt' field AND 'recommendedModel' field DIRECTLY into generate_image — do NOT modify the prompt, do NOT pick a different model unless you have a specific override reason (e.g. demonstrating a particular model's launch). Costs ~$0.001 per call (negligible). Use it EVERY time before generate_image.",
+            inputSchema: z.object({
+              postContext: z
+                .string()
+                .min(1)
+                .max(1000)
+                .describe(
+                  "What the post is about + the angle/insight the caption is making. The composer needs this to ensure the photo illustrates the post specifically, not generic vibes. Example: 'Reaction post to ComfyUI raising $30M at $500M valuation, framing it as creator-tooling consolidation — carephoto's positioning is that we already give you 7 top models in one subscription'."
+                ),
+              visualStyle: z
+                .enum(["ugc", "product", "editorial", "bts", "hero"])
+                .describe(
+                  "Visual archetype the photo should follow. 'ugc' = candid phone-camera selfie/lifestyle (most relatable, casual moment). 'product' = clean product photography, product-dominates-frame, no human unless required. 'editorial' = magazine-quality polish, environmental portrait energy. 'bts' = behind-the-scenes workspace with gear/tools/screens visible, candid. 'hero' = single dramatic subject with strong negative space, cinematic light. Pick what FITS THE POST — do NOT default to editorial."
+                ),
+              mustInclude: z
+                .array(z.string())
+                .nullable()
+                .default(null)
+                .describe(
+                  "Optional list of specific elements that MUST appear in the frame. Use this when the post has a concrete visual reference that should be present (e.g. ['laptop showing a node graph', 'render queue on screen', 'multiple lens caps']). null if no specific elements are required."
+                ),
+              aspectRatio: z
+                .enum(["1:1", "4:5", "9:16"])
+                .nullable()
+                .default(null)
+                .describe(
+                  "Optional aspect ratio hint. Helps the composer pick a composition that works for the format (e.g. vertical-friendly negative space for 9:16). Pass the same value you intend to use in the subsequent generate_image call. null to let the composer choose."
+                ),
+            }),
+            run: async (input) => {
+              const result = await composeImagePrompt(input, brand.promptBankPath);
+              return [
+                `Composed image prompt:`,
+                ``,
+                result.prompt,
+                ``,
+                `Recommended model: ${result.recommendedModel}`,
+                `Rationale: ${result.rationale}`,
+                ``,
+                `→ Call generate_image with prompt=<the prompt above, verbatim> AND model="${result.recommendedModel}". Do NOT modify either field unless you have a specific override reason.`,
+              ].join("\n");
+            },
+          }),
+          betaZodTool({
+            name: "generate_image",
+            description:
+              "Generate a brand-styled photo on-demand via the carephoto.art API. Use when the prompt bank lacks what you need — trend-reactive content, a very specific concept you can describe, or a fresh angle the bank doesn't cover. Returns a public image URL ready to feed into brand_image / photo_overlay / brand_carousel as 'imageUrl', or directly into schedule_post 'images[]'. Costs credits per call (~$0.04). PREFER browse_prompt_bank for everyday content; reach for this only when no prompt-bank image fits. Do NOT include house-style modifiers in the prompt — carephoto applies them server-side. Just describe the scene and subject.",
+            inputSchema: z.object({
+              prompt: z
+                .string()
+                .min(1)
+                .max(4000)
+                .describe("Creative prompt (1-4000 chars). Describe the scene and subject only — DO NOT include house-style modifiers like '4k cinematic editorial' (carephoto adds these server-side)."),
+              aspectRatio: z
+                .enum(["1:1", "4:5", "9:16"])
+                .default(brand.imageGeneration!.defaultAspectRatio)
+                .describe("Aspect ratio. '4:5' = Instagram feed (default), '9:16' = stories/reels (use only when the carousel is reels-specific), '1:1' = square."),
+              style: z
+                .string()
+                .max(500)
+                .nullable()
+                .default(null)
+                .describe("Optional style hint (e.g. 'warm morning light', 'editorial monochrome', 'soft window light, film grain'). null to omit."),
+              model: z
+                .enum([
+                  "nano-banana-2",
+                  "nano-banana-pro",
+                  "flux-lora",
+                  "recraft",
+                  "seedream-v5-lite",
+                  "qwen-image-2-pro",
+                  "gpt-image-2",
+                ])
+                .default(brand.imageGeneration!.defaultModel)
+                .describe("Generator model. 'nano-banana-2' (default, ~$0.08) — versatile photoreal, good editorial baseline. 'nano-banana-pro' (~$0.15, 2K) — premium 'money shot' photoreal for hero/campaign creatives; reserve for posts that warrant the cost. 'flux-lora' (~$0.04) — cinematic photography and consistent subject identity, strong with stylistic prompts. 'recraft' (~$0.04) — clean stylized brand/ad creative and vector-leaning illustration. 'seedream-v5-lite' (~$0.04, 3K) — high-resolution general-purpose with rich detail and realistic lighting. 'qwen-image-2-pro' (~$0.04, 2K) — distinctive aesthetic, great for typography-heavy posters; safety checker disabled, so vet the prompt yourself. 'gpt-image-2' (~$0.11, 3K) — pick this whenever the image must contain LEGIBLE TEXT (logos, signage, infographics); SFW only. When a post is about a SPECIFIC model launch (e.g. 'Seedream v5 just dropped'), pick that model so the post visually demonstrates it."),
+            }),
+            run: async (input) => {
+              return generateImage(input);
+            },
+          }),
+        ]
+      : []),
 
     ...(brand.promptBankPath
       ? [
@@ -439,6 +623,13 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
                 .describe("Hex color for accent word + kicker. null picks randomly from brand palette."),
               pageNumber: z.number().nullable().default(null).describe("Page number for indicator (null = no indicator)"),
               totalPages: z.number().nullable().default(null).describe("Total pages for indicator"),
+              brandLogoPath: z
+                .string()
+                .nullable()
+                .default(null)
+                .describe(
+                  "Optional local PNG path from get_brand_logo for a third-party brand (e.g. OpenAI, Midjourney, Figma). When set on a template that supports it (currently 'dark-hero-cover'), the logo renders above the headline as the visual anchor. For trend-reaction covers referencing a specific brand, always fetch the logo via get_brand_logo and pass the path here. Match the logo's theme to the slide background (dark-hero-cover has a dark bg → request theme='light' from get_brand_logo)."
+                ),
             }),
             run: async (input) => {
               const outputPath = await renderCarouselCover({
@@ -459,6 +650,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
                 brandDir: brand.brandDir,
                 designSystemDir: designSystem!.rootDir,
                 instagramHandle: brand.instagramHandle ?? "",
+                brandLogoPath: input.brandLogoPath,
               });
               return `Cover saved to: ${outputPath}`;
             },
@@ -715,7 +907,8 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
 
 export async function runAgent(
   brand: BrandConfig,
-  db: Database.Database
+  db: Database.Database,
+  opts: { userBrief?: string; maxIterations?: number } = {}
 ): Promise<void> {
   const client = new Anthropic();
   const tools = buildTools(brand, db);
@@ -734,6 +927,10 @@ export async function runAgent(
 
   console.log(`[Agent] Starting daily run for ${brand.name}...`);
 
+  const userBrief =
+    opts.userBrief ??
+    `Run the daily marketing cycle for ${brand.name}. Today is ${new Date().toISOString().split("T")[0]}. Research competitors, check trends, review past performance, and decide on today's content strategy. If you post, schedule it. Always send a summary notification at the end.`;
+
   const runner = client.beta.messages.toolRunner({
     model: "claude-sonnet-4-6",
     max_tokens: 16384,
@@ -742,11 +939,11 @@ export async function runAgent(
     messages: [
       {
         role: "user",
-        content: `Run the daily marketing cycle for ${brand.name}. Today is ${new Date().toISOString().split("T")[0]}. Research competitors, check trends, review past performance, and decide on today's content strategy. If you post, schedule it. Always send a summary notification at the end.`,
+        content: userBrief,
       },
     ],
     tools,
-    max_iterations: 20,
+    max_iterations: opts.maxIterations ?? 20,
   });
 
   let iter = 0;

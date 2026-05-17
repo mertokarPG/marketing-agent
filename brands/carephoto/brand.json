@@ -2,8 +2,8 @@
   "id": "carephoto",
   "name": "carephoto.art",
   "domain": "carephoto.art",
-  "niche": "AI photo editing and enhancement",
-  "description": "AI-powered photo editing studio specializing in portrait enhancement, dating profile photos, and professional headshots. Makes everyone look their best with intelligent AI editing.",
+  "niche": "Multi-model AI photo studio — image generation AND enhancement in one place",
+  "description": "A multi-model AI photo studio at carephoto.art. Users get every major image model (Nano Banana, Seedream, Qwen, ChatGPT Images, Imagen, Flux, and more) in one subscription, plus a 260+ prompt bank and AI enhancement for their own photos. When a new image model launches (ChatGPT Images 2.0, Imagen 4, etc.) we already have it — trend reactions should lean into 'we already added it, pick whichever model fits the vibe' rather than contrasting against carephoto. Use cases: AI photo generation, dating profile photos, LinkedIn headshots, creative portraits, enhancement of user uploads.",
   "competitors": [
     { "name": "Higgsfield", "website": "https://higgsfield.ai" },
     { "name": "Kaze AI", "website": "https://kaze.ai" },
@@ -19,19 +19,26 @@
     { "name": "Leonardo AI", "website": "https://leonardo.ai" }
   ],
   "keywords": [
-    "AI photo editor",
-    "AI dating photos",
-    "AI portrait",
-    "photo enhancement",
+    "AI photo studio",
+    "AI photo generation",
+    "multi-model AI images",
+    "Nano Banana",
+    "Flux",
+    "ChatGPT Images",
+    "Seedream",
+    "Imagen",
+    "Qwen image",
+    "AI portraits",
     "AI headshots",
-    "AI photo studio"
+    "AI dating photos",
+    "photo enhancement"
   ],
-  "tone": "Friendly, confident, slightly playful. Emphasize transformation and results. Speak to people who want to look their best online — dating profiles, LinkedIn, social media.",
+  "tone": "Friendly, confident, slightly playful. Emphasize CHOICE — pick the model that fits the vibe. When a new image model drops, the take is 'already added, try it next to the others'. Speak to creators and everyday users who want great photos without picking one walled-garden tool.",
   "postingSchedule": {
     "frequency": "daily",
     "preferredTime": "10:00"
   },
-  "promptBankPath": "/Users/mertokar/Documents/GitHub/lula/public/promptbank/prompts.json",
+  "promptBankPath": "/Users/mertokar/GitHub/lula/public/promptbank/prompts.json",
   "instagramHandle": "careaiphotoeditor",
   "designSystem": "editorial-paper",
   "branding": {
@@ -56,5 +63,14 @@
     "frequency": 0.4,
     "maxSlides": 10,
     "minSlides": 2
+  },
+  "hotTopics": {
+    "relevantThemes": "New image-generation model releases (Nano Banana, Seedream, Qwen, ChatGPT Images, Imagen, Flux, Midjourney, Stable Diffusion, etc.) — these are ALWAYS high relevance since carephoto adds them to the studio. AI image-editing launches and viral demos. Photography tools and industry news, camera/lens launches. Design systems and creative tooling launches (Claude Design, Figma, etc.). Viral design or photo moments on social. Creator-economy and content-marketing trends. Brand campaigns worth reacting to."
+  },
+  "imageGeneration": {
+    "enabled": true,
+    "provider": "carephoto",
+    "defaultModel": "nano-banana-2",
+    "defaultAspectRatio": "4:5"
   }
 }

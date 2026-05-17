@@ -27,22 +27,27 @@ Built with TypeScript. The "brain" is Claude (via Anthropic SDK `toolRunner`), w
         │  Research    │    │  Content    │    │  Output     │
         │  Tools       │    │  Tools      │    │  Tools      │
         ├─────────────┤    ├─────────────┤    ├─────────────┤
-        │scrape_       │    │get_recent_  │    │carousel_    │
-        │ competitor   │    │ posts       │    │ cover       │
-        │search_       │    │get_post_    │    │body_slide   │
-        │ trends       │    │ performance │    │brand_image  │
-        │              │    │browse_      │    │brand_       │
-        │              │    │ prompt_bank │    │ carousel    │
-        │              │    │ (dedup-aware)│    │schedule_    │
-        │              │    │             │    │ post        │
-        │              │    │             │    │send_        │
-        │              │    │             │    │ notification│
+        │get_trending_│    │get_recent_  │    │carousel_    │
+        │ topics      │    │ posts       │    │ cover       │
+        │get_hot_     │    │get_post_    │    │body_slide   │
+        │ topics      │    │ performance │    │photo_overlay│
+        │get_brand_   │    │browse_      │    │brand_image  │
+        │ logo        │    │ prompt_bank │    │brand_       │
+        │scrape_      │    │ (dedup-aware)│    │ carousel    │
+        │ competitor  │    │             │    │schedule_    │
+        │search_      │    │             │    │ post        │
+        │ trends      │    │             │    │send_        │
+        │             │    │             │    │ notification│
         └──────┬──────┘    └──────┬──────┘    └──────┬──────┘
                │                  │                   │
-        ┌──────▼──────┐    ┌──────▼──────┐    ┌──────▼──────┐
-        │  Firecrawl  │    │  SQLite DB  │    │  Postiz API │
-        │  API        │    │             │    │  + Tunnel   │
-        └─────────────┘    └─────────────┘    └─────────────┘
+     ┌─────────▼──────────┐  ┌───▼─────┐       ┌──────▼──────┐
+     │  trends DB         │  │ SQLite  │       │ Postiz API  │
+     │  (nightly scrape + │  │         │       │ + Cloudflare│
+     │   Claude Haiku     │  └─────────┘       │ named tunnel│
+     │   clustering)      │                    │ + catbox    │
+     │ Brandfetch API     │                    │ fallback    │
+     │ Firecrawl API      │                    └─────────────┘
+     └────────────────────┘
 ```
 
 ## Entry Point: `src/index.ts`
@@ -83,6 +88,7 @@ for await (msg of client.beta.messages.toolRunner({
 - `brand_image` / `brand_carousel` — only if `brand.branding.enabled` is true (engine-agnostic, sharp-based)
 - `carousel_cover` / `body_slide` / `photo_overlay` — only if `brand.branding.enabled` is true AND the active design system is `engine: "html-tokens"`. For these, the template-id enums and per-kind slot schemas are derived at tool-build time from the loaded design-system manifest.
 - For `engine: "react-jsx"` design systems, `carousel_cover` and `body_slide` are registered with different schemas (discriminated union per slide kind) that mirror the JSX renderer's slot shape.
+- `compose_image_prompt` / `generate_image` — only if `brand.imageGeneration.enabled` is true. Both gate together — the system prompt makes `compose_image_prompt` a required preflight for `generate_image`, so they're useless apart.
 
 ## Tools
 
@@ -90,8 +96,81 @@ for await (msg of client.beta.messages.toolRunner({
 
 | Tool | File | External Service | Purpose |
 |------|------|-----------------|---------|
+| `get_trending_topics` | `trending-topics.ts` | Claude Haiku 4.5 | **Step 1 of every cycle.** Reads the `trends` table, clusters items into real cross-source topics (not single viral posts), ranks by source diversity + relevance to the brand (driven by `brand.hotTopics.relevantThemes`). Returns labeled `high / medium / low` relevance. |
+| `get_hot_topics` | `hot-topics.ts` | SQLite | Raw per-post view of the `trends` table, ranked by velocity = score / source_p90_baseline. Secondary drill-down after `get_trending_topics` clusters a topic; good for pulling specific citations inside a cluster. |
+| `get_brand_logo` | `brand-logo.ts` | Brandfetch API + Google favicon fallback | Fetches a third-party brand's logo (wordmark / symbol / icon, light or dark theme) as a local PNG. Caches to `tmp/brand-logos/<slug>.png`. Used for trend-reaction covers referencing named brands (OpenAI, Midjourney, Figma, etc.). |
 | `scrape_competitor` | `scrape-competitor.ts` | Firecrawl API | Scrapes competitor websites, returns markdown (truncated to 3000 chars). Saves snapshot to DB. |
-| `search_trends` | `search-trends.ts` | Firecrawl API | Searches web for trending topics related to keywords. Returns top 10 results. |
+| `search_trends` | `search-trends.ts` | Firecrawl API | Searches web for trending topics related to keywords. Fallback / ad-hoc dig — `get_trending_topics` is the primary push-based signal. |
+
+### Hot-topics pipeline (push-based trend discovery)
+
+```
+  Brand sources                                   Agent cycle
+  ─────────────                                   ───────────
+  brands/<id>/hot-topics-sources.json
+  (RSS / HN / Reddit / firecrawl-search)
+           │
+           ▼
+  scrape-hot-topics.ts  (runs at start of every runAgent,
+                          concurrency=4, dedupes by URL)
+           │
+           ▼
+     trends table (SQLite)  ◄── every agent cycle starts by
+     id, source_id, category,     refreshing this table
+     title, url, summary, score,
+     published_at, fetched_at
+           │
+           ▼
+  get_trending_topics(brand, lookback_hours)      ←  AGENT STEP 1
+     │
+     │  Claude Haiku 4.5 structured output
+     │  clusters into "real topics covered by ≥2 sources"
+     │  filters single-source anecdotes (funny Reddit posts, etc.)
+     │  tags each cluster as relevance=high|medium|low
+     │  against brand.hotTopics.relevantThemes
+     │
+     ▼
+  Top clusters returned, ranked by:
+     1. relevance (high > medium > low)
+     2. source breadth (more distinct sources = stronger signal)
+```
+
+**Why a clustering pass?** Raw per-post ranking surfaces noise — one viral anecdote from r/photography doesn't mean the photography world is *talking about it*. Real topics have cross-source coverage (HN + Reddit + trade press all hitting the same story). Haiku is the cheapest model that can read 500+ items and do this grouping accurately. ~$0.02 per cycle.
+
+**Per-brand sources (multi-tenant).** Each brand has its own `brands/<id>/hot-topics-sources.json` — carephoto pulls AI/design/photography feeds, a hypothetical skincare brand would pull Allure + r/SkincareAddiction + Byrdie. `brand.hotTopics.relevantThemes` is injected into the Haiku system prompt so relevance scoring is brand-aware.
+
+`get_hot_topics` remains available as a raw per-post drilldown — the agent can use it after `get_trending_topics` to pull the specific Reddit/HN/RSS items inside a cluster.
+
+### Brand-logo fetching
+
+`get_brand_logo({ brand, variant, theme })` resolves third-party brand logos:
+
+```
+Input: "OpenAI" or "openai.com", variant ∈ {logo,symbol,icon}, theme ∈ {dark,light}
+    │
+    ▼
+  normalize domain  (strip protocol, www., lowercase)
+    │
+    ▼
+  if no dot in input → Brandfetch /v2/search (rank by qualityScore → resolve domain)
+    │
+    ▼
+  Brandfetch /v2/brands/<domain>
+    │  pick logo matching variant/theme (fallback ladder if exact miss)
+    │  pick format: prefer largest PNG/WebP (SVGs from Brandfetch are often
+    │               Illustrator exports with broken xmlns that librsvg rejects)
+    ▼
+  sharp rasterize → 1024px PNG
+    │
+    ▼
+  cached at tmp/brand-logos/<slug>__<variant>__<theme>.png
+```
+
+**Fallback:** if Brandfetch 404s or returns no logos, falls back to `https://www.google.com/s2/favicons?domain=<domain>&sz=256` (no auth, always works, lower quality). Variant downgrades to `icon` in that case.
+
+**Theme match rule** (enforced in system prompt): dark slide backgrounds → request `theme='light'` (light-colored logo); light backgrounds → request `theme='dark'`. Otherwise the logo invisibly blends in.
+
+**Integration with covers:** `carousel_cover` accepts an optional `brandLogoPath` slot. When set on a template that includes the `__BRAND_LOGO__` token (currently `dark-hero-cover`), the logo renders above the headline with an accent rule as visual anchor. Other templates ignore the slot.
 
 ### Content/History Tools
 
@@ -110,6 +189,8 @@ for await (msg of client.beta.messages.toolRunner({
 | `photo_overlay` | `photo-overlay.ts` | **Puppeteer + HTML/token template** | Composites editorial text onto a source photo via a `photo-*` template. Only registered for html-tokens systems that ship photo templates. |
 | `brand_image` | `brand-image.ts` | **sharp + SVG** | Composites branding onto a single image OR renders a text-card slide (with optional grainy gradient base). Engine-agnostic. |
 | `brand_carousel` | `brand-image.ts` | **sharp** | Batch-brands multiple slides. DO NOT feed a rendered cover/body/photo-overlay output through this — already branded → double-branded. Use for pure photo or text-only carousels without a cover. |
+| `compose_image_prompt` | `compose-image-prompt.ts` | **Anthropic Haiku 4.5** | REQUIRED preflight before every `generate_image`. Takes `{postContext, visualStyle, mustInclude?, aspectRatio?}`, returns `{prompt, recommendedModel, rationale}`. Bans AI-cliché tokens (`"creative woman"`, `"studio workspace"`, `"film grain"`, `"cinematic"`, etc.), requires named subject + props + location + light + composition, picks the right model from the 7 available. ~$0.001/call. See Engine D below. |
+| `generate_image` | `generate-image.ts` | **carephoto Agent API** (`POST /api/v1/agent/generate`) | Generates a brand-styled photo from a text prompt. Returns a public Supabase URL + cost metadata. Uses `prompt` and `model` fields verbatim from `compose_image_prompt`'s output. ~$0.04–$0.15 per call depending on model. See Engine D. |
 | `schedule_post` | `schedule-post.ts` | Postiz API | Uploads images, schedules post. Requires `promptIds[]` so used images get tracked for dedup. |
 | `send_notification` | `notify.ts` | SMTP | Sends email summary. Falls back to console.log. |
 
@@ -130,7 +211,7 @@ To add a new system: drop `design-systems/<new-id>/{design-system.json, template
 
 ## Image Generation Engines
 
-The project has **three image engines** chosen per use case:
+The project has **four image engines** chosen per use case. A → C are local *compositing* engines (typography, layout, branding overlays); D is the *external* pixel-generation engine (text-to-image via the carephoto Agent API). D's output usually flows through C (or A's `photo_overlay`) before reaching `schedule_post`.
 
 ### Engine A: Puppeteer + HTML/token template (carousel_cover + body_slide + photo_overlay, html-tokens design systems)
 
@@ -223,6 +304,78 @@ Base image source (in priority order):
 ```
 
 Body slides can now share the same grainy gradient system as covers by setting `background: "sunset"` (or any mood). The gradient is rendered once via puppeteer and handed back as a PNG buffer to sharp — keeps the existing text/logo/handle compositing pipeline unchanged.
+
+### Engine D: carephoto Agent API (compose_image_prompt + generate_image)
+
+For posts that need a *photo*, not a typographic slide. Two-tool pipeline — the prompt-quality step is mandatory, not optional:
+
+```
+agent decides post topic + visual archetype (ugc/product/editorial/bts/hero)
+                        │
+                        ▼
+            compose_image_prompt
+              │  Anthropic Haiku 4.5 with a tight system prompt:
+              │  - bans AI-cliché tokens (creative woman, studio
+              │    workspace, film grain, cinematic, golden hour…)
+              │  - requires named subject + 3-6 props + specific
+              │    location + specific light/moment + composition cue
+              │  - picks the model best suited to the prompt's
+              │    character (see model lineup below)
+              ▼
+        { prompt, recommendedModel, rationale }
+                        │
+                        ▼
+            generate_image
+              │  POST {CAREPHOTO_BASE_URL}/generate with
+              │  Authorization: Bearer ck_live_…
+              │  body: { prompt, aspectRatio, model, style? }
+              │  - server-side adds carephoto's house-style modifiers
+              │    (do NOT add them client-side — double-applied)
+              │  - returns public Supabase URL + creditsUsed,
+              │    estimatedUsdCost, generationId, w/h
+              ▼
+        imageUrl (public, stable)
+                        │
+        ┌───────────────┼────────────────────────────────┐
+        ▼               ▼                                ▼
+  brand_image     photo_overlay (Engine A)         schedule_post images[]
+  (Engine C)      editorial overlay templates       (raw, unbranded — only
+                                                    appropriate for the
+                                                    rare model-comparison
+                                                    case where the raw
+                                                    output IS the message)
+                        │
+                        ▼
+                 schedule_post
+```
+
+**Model lineup** (all selectable via `compose_image_prompt`'s `recommendedModel`; agent should pass that through verbatim):
+
+| Model | Resolution | ~Cost | Best for | Constraint |
+|-------|------------|-------|----------|------------|
+| `nano-banana-2` | ~1K | $0.08 | Versatile photoreal default; UGC-style candid scenes; fallback when nothing else fits | — |
+| `nano-banana-pro` | 2K | $0.15 | Premium photoreal "money shot" — hero portraits, talent close-ups, premium product | Cost; reserve for high-value posts |
+| `flux-lora` | ~1MP | $0.04 | Cinematic photography, consistent subject identity, strong stylistic prompts | — |
+| `recraft` | ~1K | $0.04 | Clean stylized brand/ad creative; vector-leaning illustration; "designed-not-shot" aesthetic | — |
+| `seedream-v5-lite` | 3K | $0.04 | High-res general-purpose with rich detail; complex multi-element scenes that benefit from resolution | — |
+| `qwen-image-2-pro` | 2K | $0.04 | Distinctive aesthetic; typography-heavy posters | **Safety checker disabled** — content responsibility on caller |
+| `gpt-image-2` | 3K | $0.11 | Editorial polish; brand assets needing legible text/logos/signage/infographics in frame | **SFW only** — OpenAI moderation cannot be disabled; mildly edgy prompts return 422 |
+
+The composer's system prompt has a per-`visualStyle` decision tree (e.g. `ugc → nano-banana-2`, `editorial+SFW → gpt-image-2`, `product+legible-text → gpt-image-2 or recraft`, `hero → gpt-image-2 if SFW else nano-banana-pro`). It also factors in content sensitivity — if the post angle could trip OpenAI moderation, the composer steers away from `gpt-image-2` even when polish would otherwise win.
+
+**The default** in `brand.json` (`imageGeneration.defaultModel`) only matters as a fallback for direct calls that bypass the composer (e.g. one-off scripts). In normal agent flow the composer's recommendation overrides it.
+
+**Failure modes** — `generate_image` returns a string (not an exception) so the agent sees the error and can recover:
+- Network timeout / TCP refused → `"network error: …"` (most common cause: local carephoto server not running, or `CAREPHOTO_BASE_URL` misconfigured)
+- 401 unauthorized → bad/missing/revoked `CAREPHOTO_API_KEY`
+- 402 quota_exceeded → out of credits
+- 422 content_filter → prompt blocked by provider; **credits auto-refunded**; agent should retry with a different prompt or model
+- 429 rate_limited → `Retry-After` header surfaced; agent backs off
+- 502 provider_error → upstream model failed; **credits auto-refunded**; agent should retry
+
+`compose_image_prompt` has its own fallback path: if the Haiku call fails or returns malformed JSON, it returns `{prompt: <postContext>, recommendedModel: "nano-banana-2", rationale: <error explanation>}` so the agent isn't blocked, but the rationale flags that the prompt should be rewritten manually before generate_image.
+
+**Cost discipline**: the system prompt enforces ~80% of posts use prompt-bank images (free per call, dedup-tracked) and reserves `generate_image` for trend-reactive content or specific concepts the bank can't cover. Carousels mix one fresh hero image with prompt-bank slides — never every slide generated.
 
 ## Grainy Gradient System: `src/lib/gradient.ts`
 
@@ -361,9 +514,15 @@ input.images[]
       ├── URL (http/https)  →  uploadImageFromUrl()  →  POST /upload-from-url
       │                        keeps original URL as path (Instagram fetches this)
       │
-      └── Local path         →  uploadImageFile()     →  POST /upload (multipart)
-                                rewrites localhost path to POSTIZ_TUNNEL_URL
-                                so Instagram can reach it
+      └── Local path  →  tunnel-health check (isTunnelHealthy)
+                          │
+                          ├── healthy  →  sharp re-encode to baseline JPEG (Q92, no progressive)
+                          │               →  uploadImageFile() →  POST /upload (multipart)
+                          │               →  rewrite localhost path to POSTIZ_TUNNEL_URL
+                          │
+                          └── unhealthy → upload file to catbox.moe (public CDN)
+                                        →  uploadImageFromUrl(catboxUrl) tells Postiz to record it
+                                        →  catbox URL is what Meta fetches
       │
       ▼
 POST /posts  →  Postiz schedules to Instagram
@@ -371,6 +530,26 @@ POST /posts  →  Postiz schedules to Instagram
       ▼
 Records to DB: posts table (with source_images[]) + content_calendar
 ```
+
+### Image encoding (shipped 2026-04-23)
+
+`sharp` re-encodes every local upload to **baseline JPEG** (Q92, `chromaSubsampling: "4:2:0"`, `progressive: false`, `flatten({background:"#fff"})`). Why each choice:
+- JPEG not PNG: Meta's IG Graph API ingester is more reliable on JPEGs. PNG carousels intermittently fail with `code 9004 / error_subcode 2207052 "Only photo or video can be accepted as media type"` on random slides.
+- Baseline (non-progressive): progressive JPEG triggers the same 2207052 error. Sharp's `mozjpeg: true` enables progressive by default — **don't use it** here.
+- Flatten to white: avoids alpha-channel surprises when Meta converts to JPEG internally.
+
+### Tunnel-health check + catbox fallback (shipped 2026-04-23)
+
+`isTunnelHealthy()` runs before each batch of uploads:
+1. **Live HEAD probe** — `GET {POSTIZ_TUNNEL_URL}/robots.txt` with a 5s timeout. 5xx or timeout → unhealthy.
+2. **History scan** — `docker logs postiz-tunnel --since 90m` grepped for `timeout: no recent network activity | ended abruptly | Connection terminated`. Any match → unhealthy.
+3. Docker unreachable (CI, other machines) → falls through to healthy.
+
+When unhealthy, local files upload to **catbox.moe** (free, anonymous, `POST https://catbox.moe/user/api.php reqtype=fileupload`) and the public catbox URL is handed to Postiz via `upload-from-url`. Meta fetches from catbox instead of `postiz.mertokar.com`.
+
+**Why this exists:** Meta maintains an internal "host health" score per domain. When our tunnel had QUIC/datagram flakes (2026-04-23, 10:06 / 11:41 / 12:00 UTC), Meta's URL validator caught aborted `/robots.txt` fetches and blacklisted the domain for hours — returning 2207052 on every subsequent media-container creation *without even retrying the fetch*. Catbox has a clean reputation and is a pressure-relief valve until uploads move to R2/S3 permanently.
+
+The tunnel path is still preferred when healthy — catbox is a fallback, not the default.
 
 ### Outlier protection (shipped 2026-04-21)
 
@@ -529,13 +708,17 @@ src/react-runtime/
 ```
 
 Key config sections in `brand.json`:
-- **Core**: id, name, domain, niche, description, tone, keywords
+- **Core**: id, name, domain, niche, description, tone, keywords — all flow into the system prompt + `get_trending_topics` relevance scoring
 - **Competitors**: array of {name, website, instagram?}
 - **Posting**: frequency (daily/weekdays/custom), preferredTime
 - **Design system** (optional): `designSystem: "<id>"` — default is `editorial-paper`
 - **Branding** (optional): logo, font (for `brand_image` only), IG icon, `colors.accent` (per-brand default accent — overrides the design system's default), `accentPalette` (used by html-tokens covers when no gradient is active), toggle for each overlay element
 - **Carousel** (optional): frequency target (0.4 = 40%), min/max slides
+- **Image generation** (optional): `imageGeneration: { enabled: bool, provider: "carephoto", defaultModel: <one of 7>, defaultAspectRatio: "1:1"|"4:5"|"9:16" }` — gates `compose_image_prompt` and `generate_image` tools. `defaultModel` is a fallback for one-off scripts; the agent uses `compose_image_prompt`'s recommended model in normal flow.
 - **Prompt bank** (optional): path to JSON file of existing AI-generated images
+- **Hot topics** (optional): `{ relevantThemes: string, sourcesFile?: string }`. `relevantThemes` is a free-form description of what makes a topic `high`/`medium`/`low` relevance for this brand — injected verbatim into the `get_trending_topics` Haiku system prompt. `sourcesFile` overrides the sources filename (defaults to `hot-topics-sources.json` in the brand dir).
+
+Per-brand hot-topics sources live at `brands/<id>/hot-topics-sources.json` (resolved by `brandSourcesPath(brand)` in `load-brand.ts`). The schema matches the global file: `{ sources: [{id, name, category, type, url}] }` where `type ∈ {rss, hackernews, reddit, firecrawl-search}`.
 
 ## System Prompt: `src/config/system-prompt.ts`
 
@@ -549,6 +732,10 @@ Dynamically built based on brand config. Includes:
   - Cover = `carousel_cover` (final, do NOT re-brand)
   - Slides 2-N = individual `brand_image` calls with explicit `pageNumber`, each with a different gradient `background` mood
   - Never feed `carousel_cover` output through `brand_carousel` or `brand_image` → double-branding
+- Image source decision (only when `brand.imageGeneration.enabled`):
+  - DEFAULT to `browse_prompt_bank` for ~80% of posts (free per call, dedup-tracked)
+  - Use `generate_image` only for trend-reactive content the bank can't cover, or to demonstrate a specific model launch
+  - **MANDATORY**: every `generate_image` call must be preceded by `compose_image_prompt`. Agent passes both `prompt` and `recommendedModel` from the composer's response straight through. The system prompt explicitly bans agent-written prompts to `generate_image` to avoid AI-cliché output.
 - Prompt-bank tracking: agent MUST pass `promptIds[]` to `schedule_post` so dedup works
 
 ## Environment Variables
@@ -563,6 +750,9 @@ FIRECRAWL_API_KEY=         # Web scraping + trend search
 POSTIZ_API_KEY=            # Instagram scheduling
 POSTIZ_BASE_URL=           # Default: https://app.postiz.com/api/public/v1
 POSTIZ_TUNNEL_URL=         # Stable public URL for self-hosted Postiz (Cloudflare named tunnel)
+BRANDFETCH_API_KEY=        # Brand-logo fetches (get_brand_logo). Free tier ~500K calls/mo.
+CAREPHOTO_API_KEY=         # carephoto Agent API (ck_live_…). Required when brand.imageGeneration.enabled.
+CAREPHOTO_BASE_URL=        # Default: https://carephoto.art/api/v1/agent. Set to http://localhost:3000/api/v1/agent when running carephoto's Next.js server locally — the Agent API is only deployed there today (prod carephoto.art does not yet expose /api/v1/agent endpoints).
 
 # Notifications (optional — falls back to console.log)
 NOTIFY_EMAIL=
@@ -595,9 +785,10 @@ SMTP_PASS=
 
 ## What's Not Yet Built
 
-1. **Image generation** — fal.ai integration or carephoto MCP server for generating new images dynamically (currently selects from a fixed prompt bank)
-2. **Dry-run mode** — no `--dry-run` flag to skip actual Postiz posting
-3. **Concurrency limits** — parallel puppeteer renders (covers + body slides) can stress Chromium (5+ simultaneous renders occasionally time out). Agent auto-retries so non-blocking, but worth a semaphore later
-4. **Delivery verification loop** — poll `GET /posts?state=PUBLISHED` after scheduling to flag ERROR deliveries and release their source_images (currently prompts get marked used at schedule time, even if IG delivery later fails)
-5. **Clamp `scheduledTime` to future** — agent occasionally picks a past UTC timestamp → Postiz immediately marks the post as ERROR. `schedule_post` should enforce `max(scheduledTime, now + 5min)`
-6. **Image-size / timeout mitigation** — large branded PNGs occasionally cause IG to report `"timeout downloading media"`. Options: pre-upload to CDN, resize outputs, add a retry
+1. **Dry-run mode** — no `--dry-run` flag to skip actual Postiz posting
+2. **Concurrency limits** — parallel puppeteer renders (covers + body slides) can stress Chromium (5+ simultaneous renders occasionally time out). Agent auto-retries so non-blocking, but worth a semaphore later
+3. **Delivery verification loop** — poll `GET /posts?state=PUBLISHED` after scheduling to flag ERROR deliveries and release their source_images (currently prompts get marked used at schedule time, even if IG delivery later fails)
+4. **Permanent media CDN (R2 / S3)** — catbox is a pressure-relief fallback, not a long-term host. Planned alongside multi-tenant rollout: upload every media to Cloudflare R2 (or equivalent), serve from a stable CDN that's not our Docker tunnel. This removes the Meta host-health risk entirely.
+5. **Brand-logo integration on more cover templates** — currently only `dark-hero-cover` renders the `__BRAND_LOGO__` slot. Other cover templates (`headline-accent`, `split-compare`, `stat-drop`, the cream-paper covers) should opt into the token with template-appropriate positioning so the agent can use any cover style for a trend-reaction.
+6. **Tunnel-health proactive alerts** — `isTunnelHealthy()` currently only gates the upload path. When unhealthy, also ping the user (notification) so they know the tunnel flaked and Meta may be cooling down.
+7. **Image-prompt reviewer (parked)** — a vision-enabled Haiku call between `generate_image` and the branding step that scores the actual rendered image against the post angle and triggers regeneration on low scores. Not built yet — `compose_image_prompt` proved sufficient on the first 3 production samples; revisit only if a recurring failure pattern shows up.

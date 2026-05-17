@@ -159,10 +159,10 @@ function AtelierTemplate({ slide, idx, total, handle, year, pal, fonts, mark }) 
   if (slide.kind === 'image') {
     return container(
       <>
-        <div style={{ position: 'absolute', left: 56, top: 160, width: 580 }}>
-          <ImgSlot label={slide.imageLabel} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="3/4" />
+        <div style={{ position: 'absolute', left: 56, top: 160, width: 520 }}>
+          <ImgSlot label={slide.imageLabel} src={slide.imageSrc} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="3/4" />
         </div>
-        <div style={{ position: 'absolute', right: 56, top: 220, width: 400 }}>
+        <div style={{ position: 'absolute', right: 56, top: 220, width: 380 }}>
           <div style={{ fontFamily: fonts.mono, fontSize: 16, letterSpacing: '0.14em', textTransform: 'uppercase', color: pal.accent, marginBottom: 24 }}>
             Plate 02
           </div>

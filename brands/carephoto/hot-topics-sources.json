@@ -1,0 +1,232 @@
+{
+  "$comment": "Hot-topics sources for the nightly scraper. Each entry declares how to fetch and categorize items. type=hackernews uses the Algolia API (exposes points). type=reddit uses Reddit's .json endpoint (exposes ups). type=rss parses standard RSS/Atom (no velocity score). Adjust this file anytime — no code changes needed.",
+  "sources": [
+    {
+      "id": "hn-frontpage",
+      "name": "Hacker News Front Page",
+      "category": "ai",
+      "type": "hackernews",
+      "url": "https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=30"
+    },
+    {
+      "id": "hn-ai",
+      "name": "Hacker News · AI tag",
+      "category": "ai",
+      "type": "hackernews",
+      "url": "https://hn.algolia.com/api/v1/search?tags=story&query=AI&hitsPerPage=30&numericFilters=points>50"
+    },
+    {
+      "id": "anthropic-news",
+      "name": "Anthropic News (via Firecrawl search)",
+      "category": "ai",
+      "type": "firecrawl-search",
+      "$comment": "Anthropic doesn't publish a public RSS feed, so we fall back to a scoped Firecrawl search. The url field is the query, not a URL.",
+      "url": "site:anthropic.com news announcement launch"
+    },
+    {
+      "id": "openai-blog",
+      "name": "OpenAI Blog",
+      "category": "ai",
+      "type": "rss",
+      "url": "https://openai.com/blog/rss.xml"
+    },
+    {
+      "id": "techcrunch-ai",
+      "name": "TechCrunch · AI",
+      "category": "ai",
+      "type": "rss",
+      "url": "https://techcrunch.com/category/artificial-intelligence/feed/"
+    },
+    {
+      "id": "verge-ai",
+      "name": "The Verge · AI",
+      "category": "ai",
+      "type": "rss",
+      "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+    },
+    {
+      "id": "producthunt",
+      "name": "Product Hunt",
+      "category": "ai",
+      "type": "rss",
+      "url": "https://www.producthunt.com/feed"
+    },
+
+    {
+      "id": "its-nice-that",
+      "name": "It's Nice That (via Firecrawl search)",
+      "category": "design",
+      "type": "firecrawl-search",
+      "$comment": "It's Nice That no longer exposes a working RSS feed (404 as of 2026-04). Fall back to Firecrawl search.",
+      "url": "site:itsnicethat.com"
+    },
+    {
+      "id": "dezeen",
+      "name": "Dezeen",
+      "category": "design",
+      "type": "rss",
+      "url": "https://www.dezeen.com/feed/"
+    },
+    {
+      "id": "creative-review",
+      "name": "Creative Review",
+      "category": "design",
+      "type": "rss",
+      "url": "https://www.creativereview.co.uk/feed/"
+    },
+    {
+      "id": "reddit-design",
+      "name": "Reddit · r/design",
+      "category": "design",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/design/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-graphic-design",
+      "name": "Reddit · r/graphic_design",
+      "category": "design",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/graphic_design/top.json?t=day&limit=25"
+    },
+
+    {
+      "id": "petapixel",
+      "name": "PetaPixel",
+      "category": "photography",
+      "type": "rss",
+      "url": "https://petapixel.com/feed/"
+    },
+    {
+      "id": "fstoppers",
+      "name": "Fstoppers",
+      "category": "photography",
+      "type": "rss",
+      "url": "https://fstoppers.com/rss.xml"
+    },
+    {
+      "id": "dpreview",
+      "name": "DPReview",
+      "category": "photography",
+      "type": "rss",
+      "url": "https://www.dpreview.com/feeds/news.xml"
+    },
+    {
+      "id": "reddit-photography",
+      "name": "Reddit · r/photography",
+      "category": "photography",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/photography/top.json?t=day&limit=25"
+    },
+
+    {
+      "id": "adweek",
+      "name": "AdWeek",
+      "category": "brands",
+      "type": "rss",
+      "url": "https://www.adweek.com/feed/"
+    },
+    {
+      "id": "muse-by-clio",
+      "name": "Muse by Clio",
+      "category": "brands",
+      "type": "rss",
+      "url": "https://musebycl.io/feed"
+    },
+    {
+      "id": "campaign",
+      "name": "Campaign (via Firecrawl search)",
+      "category": "brands",
+      "type": "firecrawl-search",
+      "$comment": "Campaign's RSS feed returns 404 (2026-04). Fall back to Firecrawl search for recent coverage.",
+      "url": "site:campaignlive.com news"
+    },
+
+    {
+      "id": "reddit-artificial",
+      "name": "Reddit · r/artificial",
+      "category": "viral",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/artificial/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-midjourney",
+      "name": "Reddit · r/midjourney",
+      "category": "viral",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/midjourney/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-stablediffusion",
+      "name": "Reddit · r/StableDiffusion",
+      "category": "viral",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/StableDiffusion/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-aiart",
+      "name": "Reddit · r/aiArt",
+      "category": "viral",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/aiArt/top.json?t=day&limit=25"
+    },
+
+    {
+      "$comment": "Cultural / mainstream viral signal — the agent was previously blind to non-niche events (sports incidents, celebrity moments, pop culture, weird news). These feed the 'visual-gap newsjack' play: events with mass conversation but no clean public photo, where carephoto can manufacture the visual.",
+      "id": "reddit-all",
+      "name": "Reddit · r/all (top/day)",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/all/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-popular",
+      "name": "Reddit · r/popular (top/day)",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/popular/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-outoftheloop",
+      "name": "Reddit · r/OutOfTheLoop (top/day)",
+      "$comment": "High-signal source for 'why is X going viral' — surfaces events with a backstory, which is exactly when the visual-gap newsjack works.",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/OutOfTheLoop/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-sports",
+      "name": "Reddit · r/sports (top/day)",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/sports/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-soccer",
+      "name": "Reddit · r/soccer (top/day)",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/soccer/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-nottheonion",
+      "name": "Reddit · r/nottheonion (top/day)",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/nottheonion/top.json?t=day&limit=25"
+    },
+    {
+      "id": "reddit-popculturechat",
+      "name": "Reddit · r/popculturechat (top/day)",
+      "category": "cultural",
+      "type": "reddit",
+      "url": "https://www.reddit.com/r/popculturechat/top.json?t=day&limit=25"
+    },
+    {
+      "id": "google-trends-us",
+      "name": "Google Trends · Daily (US)",
+      "category": "cultural",
+      "type": "rss",
+      "url": "https://trends.google.com/trending/rss?geo=US"
+    }
+  ]
+}

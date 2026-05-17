@@ -18,6 +18,7 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
     "puppeteer": "^24.41.0",
+    "rss-parser": "^3.13.0",
     "sharp": "^0.34.5",
     "zod": "^3.24.2"
   },

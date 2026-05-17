@@ -49,6 +49,10 @@ export interface CarouselCoverInput {
   brandDir: string;
   designSystemDir: string;
   instagramHandle: string;
+  // Optional path to a third-party brand's logo (from get_brand_logo). When
+  // set, templates that include the __BRAND_LOGO__ token will render it — great
+  // for trend-reaction covers referencing a specific brand's launch.
+  brandLogoPath?: string | null;
 }
 
 interface Theme {
@@ -331,6 +335,19 @@ export async function renderCarouselCover(input: CarouselCoverInput): Promise<st
       ? `<img src="${dataUrlFromFile(logoPath, imageMime(logoPath))}" alt="logo" class="logo" />`
       : ""
   );
+
+  // Third-party brand logo (opt-in: only injects if template contains __BRAND_LOGO__).
+  // Emits the entire .brand-logo-band wrapper so absence renders as nothing
+  // (not a dangling accent rule with no image).
+  if (html.includes("__BRAND_LOGO__")) {
+    const bLogo = input.brandLogoPath ?? null;
+    html = html.replaceAll(
+      "__BRAND_LOGO__",
+      bLogo && fs.existsSync(bLogo)
+        ? `<div class="brand-logo-band"><img src="${dataUrlFromFile(bLogo, imageMime(bLogo))}" alt="brand" class="brand-logo" /></div>`
+        : ""
+    );
+  }
 
   // Render with Puppeteer. protocolTimeout capped so we fail loud instead of hanging 3 min.
   const t0 = Date.now();

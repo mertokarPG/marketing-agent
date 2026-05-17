@@ -149,16 +149,21 @@
     z-index: 3;
   }
 
-  /* Blue speech-bubble sticker — matches existing carousel_cover sticker API */
+  /* Blue accent sticker — anchored to the bottom-right above the footer so it
+     never collides with the headline regardless of headline wrap. Reads as a
+     stamp/badge pinned to the slide. The tail points down-left toward the
+     handle, tying it into the footer band. */
   .sticker {
     position: absolute;
-    top: 360px;
-    right: 180px;
+    bottom: 180px;
+    right: 64px;
+    max-width: 320px;
     background: #1f6feb;
     color: #ffffff;
     font-family: 'Geist', sans-serif;
     font-weight: 700;
     font-size: 28px;
+    line-height: 1.15;
     padding: 16px 26px 18px 26px;
     border-radius: 40px;
     transform: rotate(-4deg);
@@ -224,6 +229,33 @@
     z-index: 4;
     border: 1px solid rgba(255,255,255,0.12);
   }
+
+  /* Third-party brand logo (OpenAI, Anthropic, Figma, etc.) — sits above the
+     kicker/headline as a visual anchor for trend-reaction posts. Empty when
+     no brandLogoPath is provided. Caller is responsible for requesting the
+     'light' theme from get_brand_logo so the mark reads on this dark bg. */
+  .brand-logo-band {
+    position: relative;
+    z-index: 3;
+    margin-bottom: 44px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .brand-logo-band::before {
+    content: "";
+    display: block;
+    width: 56px;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.8;
+  }
+  .brand-logo {
+    max-height: 96px;
+    max-width: 420px;
+    object-fit: contain;
+    display: block;
+  }
 </style>
 </head>
 <body>
@@ -237,6 +269,8 @@
   <div class="crosshair br"><div class="ring"></div></div>
 
   __PAGE_INDICATOR__
+
+  __BRAND_LOGO__
 
   __KICKER__
 

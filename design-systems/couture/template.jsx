@@ -128,13 +128,13 @@ function CoutureTemplate({ slide, idx, total, handle, year, pal, fonts, mark }) 
   if (slide.kind === 'image') {
     return wrap(
       <>
-        <div style={{ position:'absolute', left: 220, right: 220, top: 200 }}>
-          <ImgSlot label={slide.imageLabel} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="2/3" />
+        <div style={{ position:'absolute', left: 300, right: 300, top: 180 }}>
+          <ImgSlot label={slide.imageLabel} src={slide.imageSrc} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="2/3" />
           <div style={{ textAlign:'center', marginTop: 14, fontFamily: fonts.body, fontSize: 10, letterSpacing: '0.4em', textTransform:'uppercase', color: pal.muted, fontWeight: 400 }}>
             — Plate II —
           </div>
         </div>
-        <div style={{ position:'absolute', left: 80, right: 80, bottom: 170, textAlign:'center' }}>
+        <div style={{ position:'absolute', left: 80, right: 80, bottom: 140, textAlign:'center' }}>
           <h2 style={{ fontFamily: fonts.display, fontStyle:'italic', fontWeight: 300, fontSize: 54, margin: 0, letterSpacing: '-0.015em', color: pal.accent }}>
             {slide.title}
           </h2>

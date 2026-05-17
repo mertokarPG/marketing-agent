@@ -193,7 +193,7 @@ function NocturneTemplate({ slide, idx, total, handle, year, pal, fonts, mark })
     return wrap(
       <>
         <div style={{ position: 'absolute', left: 56, top: 140, right: 56 }}>
-          <ImgSlot label={slide.imageLabel} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="1/1" />
+          <ImgSlot label={slide.imageLabel} src={slide.imageSrc} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="1/1" />
         </div>
         <div style={{
           position: 'absolute', left: 56, right: 56, top: 620,

@@ -137,7 +137,7 @@ function TerminalTemplate({ slide, idx, total, handle, year, pal, fonts, mark })
           &gt; render ./bloom_stage.ascii
         </div>
         <div style={{ position:'absolute', left: 56, right: 56, top: 210, border: `2px solid ${pal.accent}`, padding: 10 }}>
-          <ImgSlot label={slide.imageLabel} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="4/3" />
+          <ImgSlot label={slide.imageLabel} src={slide.imageSrc} color={pal.ink} bg={pal.bg} mono={fonts.mono} aspect="4/3" />
         </div>
         <div style={{ position:'absolute', left: 56, right: 56, bottom: 170 }}>
           <div style={{ fontFamily: fonts.display, fontSize: 64, lineHeight: 1.0, textTransform: 'uppercase', color: pal.accent }}>

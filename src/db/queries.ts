@@ -283,3 +283,96 @@ export function updateContentCalendarStatus(
     id
   );
 }
+
+export interface TrendInsert {
+  source_id: string;
+  category: string;
+  title: string;
+  url: string;
+  summary?: string | null;
+  published_at?: string | null;
+  score?: number | null;
+}
+
+export interface TrendRow {
+  id: number;
+  source_id: string;
+  category: string;
+  title: string;
+  url: string;
+  summary: string | null;
+  published_at: string | null;
+  score: number | null;
+  fetched_at: string;
+}
+
+// Upsert on URL — if a story already exists, bump its score (trending items
+// grow) and refresh fetched_at so velocity windowing stays fresh.
+export function upsertTrend(db: Database.Database, t: TrendInsert): void {
+  db.prepare(
+    `INSERT INTO trends (source_id, category, title, url, summary, published_at, score)
+     VALUES (@source_id, @category, @title, @url, @summary, @published_at, @score)
+     ON CONFLICT(url) DO UPDATE SET
+       score = COALESCE(excluded.score, trends.score),
+       title = excluded.title,
+       summary = COALESCE(excluded.summary, trends.summary),
+       fetched_at = datetime('now')`
+  ).run({
+    source_id: t.source_id,
+    category: t.category,
+    title: t.title,
+    url: t.url,
+    summary: t.summary ?? null,
+    published_at: t.published_at ?? null,
+    score: t.score ?? null,
+  });
+}
+
+export function getTrendsSince(
+  db: Database.Database,
+  opts: { lookbackHours: number; categories?: string[]; minScore?: number | null }
+): TrendRow[] {
+  const { lookbackHours, categories, minScore } = opts;
+  const params: Record<string, unknown> = { lookback: `-${lookbackHours} hours` };
+  // Prefer published_at (real publish time) and fall back to fetched_at only
+  // when the source didn't expose it. This keeps a fresh scrape of a long RSS
+  // archive from flooding the digest as "recent".
+  let sql = `SELECT * FROM trends WHERE COALESCE(published_at, fetched_at) >= datetime('now', @lookback)`;
+  if (categories && categories.length > 0) {
+    sql += ` AND category IN (${categories.map((_, i) => `@cat${i}`).join(",")})`;
+    categories.forEach((c, i) => (params[`cat${i}`] = c));
+  }
+  if (minScore != null) {
+    sql += ` AND (score IS NOT NULL AND score >= @minScore)`;
+    params.minScore = minScore;
+  }
+  sql += ` ORDER BY COALESCE(score, 0) DESC, fetched_at DESC`;
+  return db.prepare(sql).all(params) as TrendRow[];
+}
+
+// Per-source score baseline (median of last 30 days). Used to normalize scores
+// across sources so HN's 500-point threshold doesn't drown out Reddit's 100.
+export function getSourceBaselines(
+  db: Database.Database
+): Map<string, { median: number; p90: number }> {
+  const rows = db
+    .prepare(
+      `SELECT source_id, score FROM trends
+       WHERE fetched_at >= datetime('now', '-30 days') AND score IS NOT NULL
+       ORDER BY source_id, score`
+    )
+    .all() as Array<{ source_id: string; score: number }>;
+  const bySource = new Map<string, number[]>();
+  for (const r of rows) {
+    if (!bySource.has(r.source_id)) bySource.set(r.source_id, []);
+    bySource.get(r.source_id)!.push(r.score);
+  }
+  const out = new Map<string, { median: number; p90: number }>();
+  for (const [src, scores] of bySource) {
+    if (scores.length === 0) continue;
+    const median = scores[Math.floor(scores.length / 2)];
+    const p90 = scores[Math.floor(scores.length * 0.9)] ?? scores[scores.length - 1];
+    out.set(src, { median, p90 });
+  }
+  return out;
+}

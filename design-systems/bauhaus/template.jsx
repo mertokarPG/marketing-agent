@@ -142,7 +142,7 @@ function BauhausTemplate({ slide, idx, total, handle, year, pal, fonts, mark }) 
       <>
         <div style={{ position:'absolute', left: 56, top: 140, width: 600, height: 720, background: pal.accent, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div style={{ width: '85%' }}>
-            <ImgSlot label={slide.imageLabel} color={pal.bg} bg={pal.accent} mono={fonts.mono} aspect="3/4" />
+            <ImgSlot label={slide.imageLabel} src={slide.imageSrc} color={pal.bg} bg={pal.accent} mono={fonts.mono} aspect="3/4" />
           </div>
         </div>
         <div style={{ position:'absolute', right: 56, top: 200, width: 320 }}>
