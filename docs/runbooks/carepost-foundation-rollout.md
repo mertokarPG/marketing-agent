@@ -3,7 +3,7 @@
 This implements the plan's "carepost-foundation" runbook (Task 16); the file name differs from the plan's `docs/runbooks/carepost-foundation.md`.
 
 Everything here is done by the owner. Nothing in this repo creates cloud resources or deploys by itself.
-Tick the boxes as you go. **Order matters**: the cutover section (step 6) exists to prevent double-posting, and steps 1-5 are safe to do beforehand.
+Tick the boxes as you go. **Order matters**: the cutover (step 8) exists to prevent double-posting, and steps 1-7 are safe to do beforehand.
 
 Where things live:
 
@@ -118,7 +118,7 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
 - [ ] Clean up if you like: `update posts set status = 'rejected' where brand_id = (select id from brands where slug = 'demo');`
 - [ ] Optional: `npm run agent -- --brand carephoto --kind manual` also works now, still draft-only because carephoto has `publisher = null`. Note: a carephoto draft created while `publisher = null` stays `pending_approval` after the autopilot flip in step 8. Reject it now (`update posts set status = 'rejected' where id = '<id>'`) or let it expire; never approve it later by accident, since it would then publish.
 
-## 6. Worker (Railway) and cutover
+## 6. Worker (Railway)
 
 - [ ] Railway -> New Project -> Deploy from GitHub repo -> this repo. In the service settings:
   - Builder: **Dockerfile**, path `Dockerfile` (it is at the repo root, `apps/worker` is *not* the build root: the build context must be the **repo root**, because the image copies `packages/core` and `supabase`).
