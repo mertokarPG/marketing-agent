@@ -1,9 +1,11 @@
 import { it, expect, vi, beforeEach } from "vitest";
 vi.mock("../../src/tools/schedule-post.js", () => ({ schedulePost: vi.fn() }));
+vi.mock("../../src/tools/ingest-analytics.js", () => ({ ingestAnalytics: vi.fn() }));
 import { schedulePost } from "../../src/tools/schedule-post.js";
+import { ingestAnalytics } from "../../src/tools/ingest-analytics.js";
 import { postizPublisher } from "../../src/publishers/postiz.js";
 
-beforeEach(() => { process.env.POSTIZ_BRAND_ID = "b"; vi.mocked(schedulePost).mockReset(); });
+beforeEach(() => { process.env.POSTIZ_BRAND_ID = "b"; vi.mocked(schedulePost).mockReset(); vi.mocked(ingestAnalytics).mockReset(); });
 
 it("publishes now via Postiz with the signed URLs", async () => {
   (schedulePost as any).mockResolvedValue({ ok: true, message: "ok", postizId: "pz-1" });
@@ -23,4 +25,16 @@ it("refuses other brands or an unset POSTIZ_BRAND_ID", async () => {
   delete process.env.POSTIZ_BRAND_ID;
   await expect(postizPublisher().publish({ id: "p", brandId: "b", caption: "c", hashtags: [], mediaUrls: [] })).rejects.toThrow(/unset/);
   expect(schedulePost).not.toHaveBeenCalled();
+});
+
+it("ingests metrics only for POSTIZ_BRAND_ID (the shared account is carephoto's)", async () => {
+  const db = {} as any;
+  await expect(postizPublisher().ingestMetrics!({ dbId: "other" } as any, db)).rejects.toThrow(/refusing/);
+  delete process.env.POSTIZ_BRAND_ID;
+  await expect(postizPublisher().ingestMetrics!({ dbId: "b" } as any, db)).rejects.toThrow(/unset/);
+  expect(ingestAnalytics).not.toHaveBeenCalled();
+  process.env.POSTIZ_BRAND_ID = "b";
+  const brand = { dbId: "b" } as any;
+  await postizPublisher().ingestMetrics!(brand, db);
+  expect(ingestAnalytics).toHaveBeenCalledWith(brand, db);
 });
