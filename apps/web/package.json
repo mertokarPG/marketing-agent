@@ -2,7 +2,7 @@
   "name": "@carepost/web",
   "version": "0.1.0",
   "private": true,
-  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "test": "vitest run", "typecheck": "tsc --noEmit -p ." },
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "test": "vitest run", "typecheck": "next typegen && tsc --noEmit -p ." },
   "dependencies": {
     "next": "16.3.8",
     "react": "19.3.0",

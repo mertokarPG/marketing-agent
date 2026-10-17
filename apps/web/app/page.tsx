@@ -5,7 +5,8 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const supabase = await createClient();
-  const { data: brands } = await supabase.from("brands").select("slug, name").order("name");
+  const { data: brands, error } = await supabase.from("brands").select("slug, name").order("name");
+  if (error) throw new Error(`brands query failed: ${error.message}`);
   return (
     <main>
       <h1>Your brands</h1>

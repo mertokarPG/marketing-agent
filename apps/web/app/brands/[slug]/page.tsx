@@ -5,11 +5,13 @@ import { formatPlanned, statusLabel } from "@/lib/format";
 export default async function BrandPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const supabase = await createClient();
-  const { data: brand } = await supabase.from("brands").select("id, name, timezone").eq("slug", slug).maybeSingle();
+  const { data: brand, error: brandErr } = await supabase.from("brands").select("id, name, timezone").eq("slug", slug).maybeSingle();
+  if (brandErr) throw new Error(`brand query failed: ${brandErr.message}`);
   if (!brand) notFound();
-  const { data: posts } = await supabase.from("posts")
+  const { data: posts, error: postsErr } = await supabase.from("posts")
     .select("id, kind, status, planned_at, caption, media").eq("brand_id", brand.id)
     .order("planned_at", { ascending: false }).limit(100);
+  if (postsErr) throw new Error(`posts query failed: ${postsErr.message}`);
   const firstPath = (p: { media: unknown }) => (p.media as { storage_path: string }[] | null)?.[0]?.storage_path;
   const firstPaths = (posts ?? []).map(firstPath).filter(Boolean) as string[];
   const { data: signed } = firstPaths.length
