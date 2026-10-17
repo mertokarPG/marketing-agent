@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import { launchBrowser } from "../lib/browser.js";
+import { loadImageSource } from "./image-source.js";
 import {
   renderGradientHtml,
   pickRandomMood,
@@ -112,6 +113,17 @@ function fileUrl(absPath: string): string {
 function dataUrlFromFile(absPath: string, mime: string): string {
   const b64 = fs.readFileSync(absPath).toString("base64");
   return `data:${mime};base64,${b64}`;
+}
+
+/**
+ * The third-party logo band. `brandLogoPath` is chosen by the agent, so it goes through
+ * loadImageSource: local reads are confined to brandDir and tmp/ (where get_brand_logo caches
+ * logos). Throws ImageSourceError for anything else.
+ */
+export async function brandLogoBand(brandLogoPath: string | null | undefined, brandDir: string): Promise<string> {
+  if (!brandLogoPath) return "";
+  const img = await loadImageSource(brandLogoPath, { brandDir });
+  return `<div class="brand-logo-band"><img src="data:${img.contentType};base64,${img.bytes.toString("base64")}" alt="brand" class="brand-logo" /></div>`;
 }
 
 function imageMime(absPath: string): string {
@@ -340,13 +352,7 @@ export async function renderCarouselCover(input: CarouselCoverInput): Promise<st
   // Emits the entire .brand-logo-band wrapper so absence renders as nothing
   // (not a dangling accent rule with no image).
   if (html.includes("__BRAND_LOGO__")) {
-    const bLogo = input.brandLogoPath ?? null;
-    html = html.replaceAll(
-      "__BRAND_LOGO__",
-      bLogo && fs.existsSync(bLogo)
-        ? `<div class="brand-logo-band"><img src="${dataUrlFromFile(bLogo, imageMime(bLogo))}" alt="brand" class="brand-logo" /></div>`
-        : ""
-    );
+    html = html.replaceAll("__BRAND_LOGO__", await brandLogoBand(input.brandLogoPath, input.brandDir));
   }
 
   // Render with Puppeteer. protocolTimeout capped so we fail loud instead of hanging 3 min.
