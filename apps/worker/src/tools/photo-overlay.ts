@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
 import puppeteer from "puppeteer";
+import { loadImageSource } from "./image-source.js";
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1350;
@@ -77,16 +78,6 @@ function dataUrlFromFile(absPath: string, mime: string): string {
   return `data:${mime};base64,${b64}`;
 }
 
-async function fetchImageBuffer(source: string): Promise<{ buf: Buffer; mime: string }> {
-  if (source.startsWith("http://") || source.startsWith("https://")) {
-    const res = await fetch(source);
-    if (!res.ok) throw new Error(`Failed to fetch photo: ${res.status}`);
-    const mime = res.headers.get("content-type") ?? "image/jpeg";
-    return { buf: Buffer.from(await res.arrayBuffer()), mime };
-  }
-  return { buf: fs.readFileSync(source), mime: imageMime(source) };
-}
-
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -119,6 +110,8 @@ function pickAccent(
 }
 
 export async function renderPhotoOverlay(input: PhotoOverlayInput): Promise<string> {
+  // Untrusted (LLM-chosen) source: validate it before any other work.
+  const photo = await loadImageSource(input.photoSource, { brandDir: input.brandDir });
   ensureTmpDir();
 
   const templatePath = path.resolve(input.designSystemDir, "templates", `${input.templateId}.html`);
@@ -141,8 +134,7 @@ export async function renderPhotoOverlay(input: PhotoOverlayInput): Promise<stri
   }
 
   // Photo background (embed as data URL so file:// origin doesn't matter)
-  const { buf, mime } = await fetchImageBuffer(input.photoSource);
-  const photoDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+  const photoDataUrl = `data:${photo.contentType};base64,${photo.bytes.toString("base64")}`;
   html = html.replaceAll("__PHOTO_BG__", `<img src="${photoDataUrl}" alt="photo" />`);
 
   // Accent color

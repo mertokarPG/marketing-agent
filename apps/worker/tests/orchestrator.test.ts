@@ -146,4 +146,18 @@ describe("buildTools", () => {
     expect(out).toContain("Late window post");
     expect(out).not.toContain("After window post");
   });
+
+  it("photo_overlay refuses local files outside the brand dirs and non-public URLs", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
+    const brand: BrandConfig = {
+      ...mockBrand, dbId, instagramHandle: "testbrand",
+      branding: { enabled: true, logoPath: "assets/logo.png", showLogo: true, showHandle: true, showPageIndicator: true, showSwipeArrow: true },
+    };
+    const tool = buildTools(brand, db, testCtx()).find((t) => t.name === "photo_overlay") as any;
+    const run = (imageUrl: string) => tool.run({ templateId: "x", imageUrl, headline: "h", accentColor: null });
+    expect(await run("/etc/passwd")).toMatch(/^photo_overlay failed: .*outside the brand and render directories/);
+    expect(await run("http://169.254.169.254/")).toMatch(/^photo_overlay failed: only https/);
+    expect(await run("https://169.254.169.254/latest")).toMatch(/^photo_overlay failed: .*non-public address/);
+  });
 });

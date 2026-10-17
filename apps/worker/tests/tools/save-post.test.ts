@@ -185,11 +185,11 @@ describe("savePost image sources", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
-  it("rejects an https host that resolves to a private address", async () => {
+  it("rejects an https host that resolves to a private address (checked at connect time)", async () => {
     lookup.mockResolvedValue([{ address: "10.0.0.5", family: 4 }]);
-    expect(await rejected(["https://internal.example.com/x.png"])).toMatch(/non-public address/);
+    // Real undici fetch + guarded dispatcher; the injected resolver keeps it offline.
+    expect(await rejected(["https://internal.example.com/x.png"], { lookup } as any)).toMatch(/non-public address/);
     expect(lookup).toHaveBeenCalledWith("internal.example.com");
-    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("saves a public https image", async () => {

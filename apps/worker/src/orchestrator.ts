@@ -743,7 +743,9 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
               totalPages: z.number().nullable().default(null).describe("Total pages for indicator"),
             }),
             run: async (input) => {
-              const outputPath = await renderPhotoOverlay({
+              let outputPath: string;
+              try {
+                outputPath = await renderPhotoOverlay({
                 templateId: input.templateId,
                 photoSource: input.imageUrl,
                 slots: {
@@ -766,7 +768,10 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
                 brandDir: brand.brandDir,
                 designSystemDir: designSystem!.rootDir,
                 instagramHandle: brand.instagramHandle ?? "",
-              });
+                });
+              } catch (err) {
+                return `photo_overlay failed: ${err instanceof Error ? err.message : String(err)}`;
+              }
               return `Photo overlay saved to: ${outputPath}`;
             },
           }),

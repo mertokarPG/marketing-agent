@@ -15,24 +15,25 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
+    "@carepost/core": "*",
     "@mendable/firecrawl-js": "^1.19.0",
     "dotenv": "^17.4.1",
     "nodemailer": "^6.9.16",
     "puppeteer": "^24.41.0",
     "rss-parser": "^3.13.0",
     "sharp": "^0.34.5",
-    "zod": "^3.24.2",
     "tsx": "^4.19.0",
-    "@carepost/core": "*"
+    "undici": "8.11.2",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.2.17",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
     "@types/nodemailer": "^6.4.17",
     "@types/sharp": "^0.31.1",
+    "better-sqlite3": "^11.7.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0",
-    "@electric-sql/pglite": "0.2.17",
-    "better-sqlite3": "^11.7.0"
+    "vitest": "^3.0.0"
   }
 }

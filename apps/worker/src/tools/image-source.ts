@@ -2,6 +2,7 @@ import dns from "node:dns/promises";
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
+import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
 
 // Image inputs (save_post images[], brand_image imageUrl) are chosen by the LLM,
 // which reads scraped web content. Treat them as untrusted: local reads are
@@ -9,9 +10,17 @@ import path from "node:path";
 
 export type ImageExt = "png" | "jpg" | "webp";
 export interface LoadedImage { bytes: Buffer; ext: ImageExt; contentType: string }
+export type ResolveFn = (host: string) => Promise<{ address: string; family: number }[]>;
+export interface FetchResponse {
+  status: number; ok: boolean; headers: { get(name: string): string | null }; body: ReadableStream<Uint8Array> | null;
+}
+export type FetchFn = (
+  url: string, init: { redirect: "manual"; signal: AbortSignal; dispatcher: Dispatcher }
+) => Promise<FetchResponse>;
 export interface ImageSourceDeps {
-  lookup?: (host: string) => Promise<{ address: string; family: number }[]>;
-  fetch?: typeof fetch;
+  /** DNS resolver used at connect time by the guarded dispatcher. */
+  lookup?: ResolveFn;
+  fetch?: FetchFn;
 }
 export interface ImageSourceOptions {
   brandDir: string;
@@ -44,7 +53,7 @@ for (const [addr, prefix] of [
 ] as const) blockedV4.addSubnet(addr, prefix, "ipv4");
 const blockedV6 = new net.BlockList();
 for (const [addr, prefix] of [
-  ["::", 128], ["::1", 128], ["::ffff:0:0", 96], ["64:ff9b::", 96], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8],
+  ["::", 128], ["::1", 128], ["::ffff:0:0", 96], ["64:ff9b::", 96], ["2002::", 16], ["2001::", 32], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8],
 ] as const) blockedV6.addSubnet(addr, prefix, "ipv6");
 
 export function isBlockedAddress(address: string): boolean {
@@ -84,27 +93,44 @@ async function loadLocal(src: string, opts: ImageSourceOptions, maxBytes: number
   return finish(await fs.readFile(real), `local image ${src}`);
 }
 
-function raceAbort<T>(p: Promise<T>, signal: AbortSignal): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    if (signal.aborted) return reject(signal.reason);
-    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-    p.then(resolve, reject);
-  });
+type LookupCallback = (err: Error | null, address?: string | { address: string; family: number }[], family?: number) => void;
+
+/**
+ * net/tls `lookup` hook: the ONLY name resolution for URL fetches. It validates
+ * every resolved address and hands the socket exactly those validated
+ * addresses, so the checked IP is the IP connected to (no DNS-rebinding gap).
+ */
+export function guardedLookup(resolve: ResolveFn) {
+  return (hostname: string, options: { all?: boolean } | number | undefined, callback: LookupCallback): void => {
+    resolve(hostname).then((addrs) => {
+      if (addrs.length === 0 || addrs.some((a) => isBlockedAddress(a.address)))
+        return callback(new ImageSourceError(`image host ${hostname} resolves to a non-public address`));
+      if (typeof options === "object" && options?.all) return callback(null, addrs);
+      callback(null, addrs[0].address, addrs[0].family);
+    }, () => callback(new ImageSourceError(`cannot resolve image host ${hostname}`)));
+  };
 }
 
-async function assertPublicHttps(url: URL, deps: ImageSourceDeps, signal: AbortSignal): Promise<void> {
+const systemResolve: ResolveFn = (h) => dns.lookup(h, { all: true });
+export function guardedAgent(resolve: ResolveFn = systemResolve): Agent {
+  return new Agent({ connect: { lookup: guardedLookup(resolve) as any } });
+}
+const defaultAgent = guardedAgent();
+
+function assertHttpsUrl(url: URL): void {
   if (url.protocol !== "https:") throw new ImageSourceError(`only https image URLs are allowed (got ${url.protocol})`);
+  // Literal IPs never reach the lookup hook, so check them here.
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  const addresses = net.isIP(host)
-    ? [host]
-    : await raceAbort((deps.lookup ?? ((h: string) => dns.lookup(h, { all: true })))(host), signal)
-        .then((r) => r.map((a) => a.address))
-        .catch(() => { throw new ImageSourceError(`cannot resolve image host ${host}`); });
-  if (addresses.length === 0 || addresses.some(isBlockedAddress))
-    throw new ImageSourceError(`image host ${host} resolves to a non-public address`);
+  if (net.isIP(host) && isBlockedAddress(host)) throw new ImageSourceError(`image host ${host} resolves to a non-public address`);
 }
 
-async function readCapped(res: Response, maxBytes: number): Promise<Buffer> {
+function findImageSourceError(err: unknown): ImageSourceError | null {
+  for (let e = err, depth = 0; e && depth < 5; e = (e as { cause?: unknown }).cause, depth++)
+    if (e instanceof ImageSourceError) return e;
+  return null;
+}
+
+async function readCapped(res: FetchResponse, maxBytes: number): Promise<Buffer> {
   const declared = Number(res.headers.get("content-length") ?? "0");
   if (declared > maxBytes) throw new ImageSourceError(`image exceeds ${maxBytes} bytes`);
   if (!res.body) return Buffer.alloc(0);
@@ -126,29 +152,33 @@ async function readCapped(res: Response, maxBytes: number): Promise<Buffer> {
 
 async function loadUrl(src: string, opts: ImageSourceOptions, maxBytes: number): Promise<LoadedImage> {
   const deps = opts.deps ?? {};
-  const doFetch = deps.fetch ?? fetch;
-  // One deadline covers DNS, every redirect hop and the body read, so a slow
-  // host cannot hold the caller (and save_post's per-brand lock) indefinitely.
+  const doFetch: FetchFn = deps.fetch ?? (undiciFetch as unknown as FetchFn);
+  const dispatcher = deps.lookup ? guardedAgent(deps.lookup) : defaultAgent;
+  // One deadline covers connect (incl. DNS), every redirect hop and the body
+  // read, so a slow host cannot hold the caller (and save_post's per-brand lock).
   const signal = AbortSignal.timeout(opts.timeoutMs ?? FETCH_TIMEOUT_MS);
   let url: URL;
   try { url = new URL(src); } catch { throw new ImageSourceError(`invalid image URL: ${src}`); }
   try {
     for (let hop = 0; ; hop++) {
-      await assertPublicHttps(url, deps, signal);
-      const res = await doFetch(url, { redirect: "manual", signal });
+      assertHttpsUrl(url);
+      const res = await doFetch(url.href, { redirect: "manual", signal, dispatcher });
       if (res.status >= 300 && res.status < 400) {
         const location = res.headers.get("location");
         if (!location || hop >= MAX_REDIRECTS) throw new ImageSourceError(`too many or invalid redirects for ${src}`);
-        url = new URL(location, url); // re-validated at the top of the loop
+        url = new URL(location, url); // next hop goes through the same checks and dispatcher
         continue;
       }
       if (!res.ok) throw new ImageSourceError(`fetch ${url.href}: HTTP ${res.status}`);
       return finish(await readCapped(res, maxBytes), `image at ${url.href}`);
     }
   } catch (err) {
-    if (err instanceof ImageSourceError) throw err;
+    const guarded = findImageSourceError(err);
+    if (guarded) throw guarded;
     if (signal.aborted) throw new ImageSourceError(`fetching ${src} timed out`);
     throw new ImageSourceError(`fetch ${src}: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    if (dispatcher !== defaultAgent) void dispatcher.destroy().catch(() => undefined);
   }
 }
 
