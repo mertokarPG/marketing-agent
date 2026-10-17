@@ -1,5 +1,7 @@
 # Carepost foundation rollout (owner runbook)
 
+This implements the plan's "carepost-foundation" runbook (Task 16); the file name differs from the plan's `docs/runbooks/carepost-foundation.md`.
+
 Everything here is done by the owner. Nothing in this repo creates cloud resources or deploys by itself.
 Tick the boxes as you go. **Order matters**: the cutover section (step 6) exists to prevent double-posting, and steps 1-5 are safe to do beforehand.
 
@@ -22,6 +24,10 @@ Key placement rule: the **service-role key lives only on the worker**. The web a
   rm ~/Library/LaunchAgents/com.carephoto.hot-topics.plist
   launchctl list | grep carephoto   # expect no output
   ```
+- [ ] **Clear legacy scheduled posts in Postiz.** The old `schedule-post` used type `schedule` for future dates, so posts may still be queued in Postiz after the laptop is stopped. The worker only knows its own `posts` table and will not see them, so both would publish. Open the Postiz calendar (week and month view, a few weeks ahead) and list every carephoto post already scheduled by the old system. For each one, do one of:
+  - Delete it in Postiz (preferred), or
+  - Note its date and leave that day unplanned: delete any worker draft for that local date (`update posts set status = 'rejected' where brand_id = (select id from brands where slug = 'carephoto') and status in ('pending_approval','scheduled') and (planned_at at time zone 'Europe/Brussels')::date = '<YYYY-MM-DD>';`) and do not run a weekly plan covering it until it has passed.
+  Write the dates you found here: ______ . This is re-checked in step 8 right before autopilot.
 - [ ] Keep `marketing-agent.db` (the old SQLite file); step 5 imports it.
 
 ## 1. Supabase
@@ -34,10 +40,11 @@ Note the free plan allows 2 active projects per org; pause or upgrade another on
   brew install supabase/tap/supabase
   supabase login
   ```
-- [ ] Create the project (pick your org id from `supabase orgs list`; choose and save a strong DB password):
+- [ ] Create the project (pick your org id from `supabase orgs list`; the generated DB password goes into your password manager, not the repo; you need it for `DATABASE_URL`. If you prefer to see it, generate it first with `openssl rand -base64 24 | tr -d '/+='` and pass that string):
   ```bash
   supabase orgs list
-  supabase projects create carepost --org-id <org-id> --region eu-central-1
+  supabase projects create carepost --org-id <org-id> --region eu-central-1 \
+    --db-password "$(openssl rand -base64 24 | tr -d '/+=')"   # print/copy it ONCE into a password manager; never commit it
   supabase projects list            # note the REFERENCE ID of carepost
   ```
   (Or create it in the dashboard; the rest is identical.)
@@ -109,7 +116,7 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
 - [ ] In the web app, open the `demo` brand: the draft is there **with its images visible** (this exercises signed URLs through the storage policy).
 - [ ] Non-member check (storage + RLS by hand): sign in to the web app with a second email that is not a member of any brand; it must see no brands and no drafts. Optionally, from that session, confirm a signed URL for `post-media/<demo-brand-uuid>/...` is refused.
 - [ ] Clean up if you like: `update posts set status = 'rejected' where brand_id = (select id from brands where slug = 'demo');`
-- [ ] Optional: `npm run agent -- --brand carephoto --kind manual` also works now, still draft-only because carephoto has `publisher = null`.
+- [ ] Optional: `npm run agent -- --brand carephoto --kind manual` also works now, still draft-only because carephoto has `publisher = null`. Note: a carephoto draft created while `publisher = null` stays `pending_approval` after the autopilot flip in step 8. Reject it now (`update posts set status = 'rejected' where id = '<id>'`) or let it expire; never approve it later by accident, since it would then publish.
 
 ## 6. Worker (Railway) and cutover
 
@@ -142,7 +149,21 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
     railway run --service <worker-service> -- npm run agent -- --brand demo --kind manual --brief "Draft one carousel test post."
     ```
     (`railway run` uses Railway's variables but executes on your laptop. To exercise the *container*, instead wait for the scheduled weekly/daily run for a brand, or open a Railway shell on the deployed service with `railway ssh` and run the same command there, then check logs for Puppeteer/Chromium errors.)
-- [ ] Only now enable carephoto autopilot. Prerequisites: step 0 done, steps 4-5 clean, worker healthy, `POSTIZ_BRAND_ID` matches.
+
+## 7. Import history from SQLite (before autopilot)
+
+Imported rows have status `published`, so they can never be republished, and the agent then plans with past-post context. Idempotent, safe to re-run (re-runs report zeros). Needs the carephoto brand seeded (step 4).
+
+- [ ] ```bash
+  cd apps/worker
+  npm run migrate-sqlite -- /path/to/old/marketing-agent.db carephoto
+  ```
+  It prints the imported counts. The web app shows carephoto with its history.
+
+## 8. Enable carephoto autopilot (cutover)
+
+- [ ] **Re-check the Postiz calendar** for old-system scheduled posts (step 0) once more; delete or work around any that remain.
+- [ ] Only now enable carephoto autopilot. Prerequisites: step 0 done, steps 4, 5 and 7 clean, worker healthy, `POSTIZ_BRAND_ID` matches.
   ```sql
   update brands set approval_mode = 'autopilot', publisher = 'postiz' where slug = 'carephoto';
   ```
@@ -151,16 +172,6 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
   update brands set approval_mode = 'review', publisher = null where slug = 'carephoto';
   ```
 - [ ] After a week of correct posts, remove the `demo` brand if you do not want it listed.
-
-## 7. Import history from SQLite
-
-Idempotent, safe to re-run (re-runs report zeros). Needs the carephoto brand seeded (step 4).
-
-- [ ] ```bash
-  cd apps/worker
-  npm run migrate-sqlite -- /path/to/old/marketing-agent.db carephoto
-  ```
-  It prints the imported counts. The web app shows carephoto with its history.
 
 ## Known follow-ups
 
