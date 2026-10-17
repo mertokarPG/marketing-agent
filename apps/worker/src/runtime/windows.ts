@@ -8,7 +8,9 @@ export function runWindow(brand: BrandConfig, kind: RunKind, periodKey: string, 
   const tz = brand.timezone;
   if (kind === "weekly_plan") {
     const monday = mondayOfIsoWeek(periodKey);
-    return { start: zonedTimeToUtc(monday, "00:00", tz), end: zonedTimeToUtc(addDaysYmd(monday, 7), "00:00", tz) };
+    // A weekly plan run mid-week (e.g. the first plan after cutover) must never backdate posts.
+    const start = Math.max(zonedTimeToUtc(monday, "00:00", tz).getTime(), now.getTime() + 15 * 60_000);
+    return { start: new Date(start), end: zonedTimeToUtc(addDaysYmd(monday, 7), "00:00", tz) };
   }
   if (kind === "daily_check") {
     const today = localParts(now, tz).ymd;
@@ -22,7 +24,8 @@ export function buildBrief(brand: BrandConfig, kind: RunKind, periodKey: string,
   const w = runWindow(brand, kind, periodKey, now);
   const windowLine = `Allowed plannedAt window: ${w.start.toISOString()} → ${w.end.toISOString()} (UTC). Brand timezone: ${tz}. Local time now: ${formatLocal(now, tz)}.`;
   if (kind === "weekly_plan") {
-    const slots = coreSlots(periodKey, brand.postingSchedule.coreDays, brand.postingSchedule.defaultTime, tz);
+    const slots = coreSlots(periodKey, brand.postingSchedule.coreDays, brand.postingSchedule.defaultTime, tz)
+      .filter((s) => s.at >= w.start && s.at < w.end);
     const list = slots.map((s) => `- ${formatLocal(s.at, tz)} local → plannedAt ${s.at.toISOString()}`).join("\n");
     return `Plan and draft the CORE posts for ${brand.name} for ISO week ${periodKey}.
 ${windowLine}
