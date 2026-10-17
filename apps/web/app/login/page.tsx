@@ -11,7 +11,7 @@ async function sendLink(formData: FormData) {
   const next = safeNextPath(String(formData.get("next") ?? ""));
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${site}/auth/callback?next=${encodeURIComponent(next)}` } });
-  redirect(error ? "/login?error=send" : "/login?sent=1");
+  redirect(error ? `/login?error=send&next=${encodeURIComponent(next)}` : "/login?sent=1");
 }
 
 export default async function Login({ searchParams }: { searchParams: Promise<{ error?: string; sent?: string; next?: string }> }) {
