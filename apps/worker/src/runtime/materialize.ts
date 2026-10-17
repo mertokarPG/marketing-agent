@@ -11,6 +11,7 @@ export async function materializeBrand(
   const row = await getBrandById(db, brandId);
   if (!row) throw new Error(`brand not found: ${brandId}`);
   const assets = await listBrandAssets(db, brandId);
+  await fs.mkdir(tmpRoot, { recursive: true }); // absent on a clean checkout (CLI path)
   const dir = await fs.mkdtemp(path.join(tmpRoot, `brand-${row.slug}-`));
   const cleanup = () => fs.rm(dir, { recursive: true, force: true });
   try {

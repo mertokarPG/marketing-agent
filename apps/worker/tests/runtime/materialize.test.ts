@@ -24,6 +24,19 @@ describe("materializeBrand", () => {
     expect(fs.existsSync(brand.brandDir)).toBe(false);
   });
 
+  it("creates a missing tmpRoot (clean checkout, CLI path)", async () => {
+    const { db } = await createTestDb();
+    const brandId = await seedTestBrand(db, { slug: "fresh" });
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "mat-"));
+    const tmpRoot = path.join(base, "tmp", "runs");
+    expect(fs.existsSync(tmpRoot)).toBe(false);
+    const { brand, cleanup } = await materializeBrand(db, new MemoryStorage(), brandId, tmpRoot);
+    expect(path.dirname(brand.brandDir)).toBe(tmpRoot);
+    expect(fs.existsSync(brand.brandDir)).toBe(true);
+    await cleanup();
+    fs.rmSync(base, { recursive: true, force: true });
+  });
+
   it("throws for an unknown brand", async () => {
     const { db } = await createTestDb();
     await expect(materializeBrand(db, new MemoryStorage(), "00000000-0000-4000-8000-000000000000", os.tmpdir()))
