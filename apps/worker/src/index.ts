@@ -40,7 +40,8 @@ async function dailyRun(): Promise<void> {
       console.error(`[Agent] Hot-topics scrape failed (continuing): ${msg}`);
     }
 
-    await runAgent(brand, db);
+    // Interim shim until Task 7 builds BrandConfig from DB rows (dbId/productPhotos unused on SQLite path).
+    await runAgent({ ...brand, dbId: "", slug: brand.id, productPhotos: [] }, db);
   } catch (error) {
     const errorMsg =
       error instanceof Error ? error.message : String(error);

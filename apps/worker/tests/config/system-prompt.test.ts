@@ -18,7 +18,7 @@ const mockBrand: BrandConfig = {
   ],
   keywords: ["test", "brand"],
   tone: "Professional and direct",
-  postingSchedule: { frequency: "daily", preferredTime: "10:00" },
+  postingSchedule: { coreDays: ["mon","tue","wed","thu","fri"], defaultTime: "10:00" }, timezone: "Europe/Brussels", approvalMode: "review", publisher: null, dbId: "00000000-0000-4000-8000-000000000001", slug: "testbrand", productPhotos: [],
   brandDir: "/tmp",
 };
 
@@ -104,7 +104,7 @@ describe("loadBrand", () => {
       competitors: [{ name: "Comp A" }],
       keywords: ["test"],
       tone: "Professional",
-      postingSchedule: { frequency: "daily", preferredTime: "10:00" },
+      postingSchedule: { coreDays: ["mon","tue","wed","thu","fri"], defaultTime: "10:00" }, timezone: "Europe/Brussels", approvalMode: "review", publisher: null, dbId: "00000000-0000-4000-8000-000000000001", slug: "testbrand", productPhotos: [],
       instagramHandle: "testbrand",
       branding: {
         enabled: true,
@@ -151,7 +151,7 @@ describe("loadBrand", () => {
       competitors: [],
       keywords: [],
       tone: "Neutral",
-      postingSchedule: { frequency: "daily", preferredTime: "10:00" },
+      postingSchedule: { coreDays: ["mon","tue","wed","thu","fri"], defaultTime: "10:00" }, timezone: "Europe/Brussels", approvalMode: "review", publisher: null, dbId: "00000000-0000-4000-8000-000000000001", slug: "testbrand", productPhotos: [],
     };
 
     fs.writeFileSync(

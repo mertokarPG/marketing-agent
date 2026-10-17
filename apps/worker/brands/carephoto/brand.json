@@ -35,10 +35,13 @@
   ],
   "tone": "Friendly, confident, slightly playful. Emphasize CHOICE — pick the model that fits the vibe. When a new image model drops, the take is 'already added, try it next to the others'. Speak to creators and everyday users who want great photos without picking one walled-garden tool.",
   "postingSchedule": {
-    "frequency": "daily",
-    "preferredTime": "10:00"
+    "coreDays": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    "defaultTime": "10:00"
   },
-  "promptBankPath": "/Users/mertokar/GitHub/lula/public/promptbank/prompts.json",
+  "timezone": "Europe/Brussels",
+  "approvalMode": "autopilot",
+  "publisher": "postiz",
+  "promptBankPath": "data/prompt-banks/carephoto.json",
   "instagramHandle": "careaiphotoeditor",
   "designSystem": "editorial-paper",
   "branding": {

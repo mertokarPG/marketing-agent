@@ -12,7 +12,7 @@ const mockBrand: BrandConfig = {
   competitors: [{ name: "Competitor A", website: "https://a.com" }],
   keywords: ["test"],
   tone: "Professional",
-  postingSchedule: { frequency: "daily", preferredTime: "10:00" },
+  postingSchedule: { coreDays: ["mon","tue","wed","thu","fri"], defaultTime: "10:00" }, timezone: "Europe/Brussels", approvalMode: "review", publisher: null, dbId: "00000000-0000-4000-8000-000000000001", slug: "testbrand", productPhotos: [],
   brandDir: "/tmp/testbrand",
 };
 
