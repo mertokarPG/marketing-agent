@@ -92,15 +92,28 @@ export async function approvePost(db: Db, brandId: string, id: string): Promise<
   return rows.length === 1;
 }
 
+/** Approved posts more than `MISSED_WINDOW_HOURS` past their time are never published late. */
+export const MISSED_WINDOW_HOURS = 6;
+
+export async function expireMissedApprovedPosts(db: Db): Promise<number> {
+  const rows = await db.query(
+    `update posts set status = 'expired', publish_error = 'missed publish window'
+     where status = 'approved' and planned_at < now() - make_interval(hours => $1) returning id`,
+    [MISSED_WINDOW_HOURS]);
+  return rows.length;
+}
+
 export async function claimDuePosts(db: Db, limit: number): Promise<DuePost[]> {
   return db.query<DuePost>(
     `with due as (
        select p.id from posts p join brands b on b.id = p.brand_id
-       where p.status = 'approved' and p.planned_at <= now() and b.publisher is not null
+       where p.status = 'approved' and p.planned_at <= now()
+         and p.planned_at >= now() - make_interval(hours => $2)
+         and b.publisher is not null and b.status = 'active'
        order by p.planned_at for update of p skip locked limit $1)
      update posts p set status = 'publishing' from due, brands b
      where p.id = due.id and b.id = p.brand_id
-     returning p.*, b.publisher`, [limit]);
+     returning p.*, b.publisher`, [limit, MISSED_WINDOW_HOURS]);
 }
 
 export async function markPublished(db: Db, id: string, externalId: string): Promise<void> {

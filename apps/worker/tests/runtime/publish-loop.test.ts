@@ -54,6 +54,24 @@ describe("publishTick", () => {
     expect((await status(id)).status).toBe("expired");
   });
 
+  it("expires approved posts more than 6h overdue instead of publishing them", async () => {
+    publish.mockResolvedValue({ externalId: "ext-1" });
+    const late = await post({ planned_at: new Date(Date.now() - 7 * 3600_000) });
+    const due = await post();
+    expect(await publishTick(deps())).toEqual({ expired: 1, published: 1, failed: 0 });
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({ id: due }));
+    expect(await status(late)).toMatchObject({ status: "expired", publish_error: "missed publish window" });
+  });
+
+  it("does not publish posts of paused brands", async () => {
+    await db.query("update brands set status = 'paused' where id = $1", [brand]);
+    const id = await post();
+    expect(await publishTick(deps())).toEqual({ expired: 0, published: 0, failed: 0 });
+    expect(publish).not.toHaveBeenCalled();
+    expect((await status(id)).status).toBe("approved");
+  });
+
   it("marks failures and notifies the owner without retrying", async () => {
     publish.mockRejectedValue(new Error("postiz 500"));
     const id = await post();

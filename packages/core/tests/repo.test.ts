@@ -3,7 +3,7 @@ import { createTestDb, seedTestBrand, addTestMember } from "../src/testing.js";
 import type { Db } from "../src/db.js";
 import {
   insertPost, getRecentPosts, getUsedPromptIds, getPlannedPosts, countRunPosts, hasCorePostOnLocalDate,
-  expirePendingPosts, claimDuePosts, markPublished, approvePost, setExternalPostId, getPostsWithExternalId,
+  expirePendingPosts, expireMissedApprovedPosts, claimDuePosts, markPublished, approvePost, setExternalPostId, getPostsWithExternalId,
 } from "../src/repo/posts.js";
 import { insertAnalytics, getPostPerformance } from "../src/repo/metrics.js";
 import { upsertTrend, getTrendsSince, getSourceBaselines } from "../src/repo/trends.js";
@@ -88,6 +88,25 @@ describe("posts", () => {
     await markPublished(db, due, "ext-1");
     const [row] = await db.query("select status, external_post_id from posts where id = $1", [due]);
     expect(row).toEqual({ status: "published", external_post_id: "ext-1" });
+  });
+});
+
+describe("publish window", () => {
+  it("does not claim approved posts more than 6h overdue and expires them", async () => {
+    const late = await insertPost(db, base({ status: "approved", planned_at: new Date(Date.now() - 7 * 3600_000) }));
+    const recent = await insertPost(db, base({ status: "approved", planned_at: new Date(Date.now() - 5 * 3600_000) }));
+    expect((await claimDuePosts(db, 10)).map((p) => p.id)).toEqual([recent]);
+    expect(await expireMissedApprovedPosts(db)).toBe(1);
+    const [row] = await db.query("select status, publish_error from posts where id = $1", [late]);
+    expect(row).toEqual({ status: "expired", publish_error: "missed publish window" });
+    expect(await expireMissedApprovedPosts(db)).toBe(0);
+  });
+
+  it("does not claim due posts of paused brands", async () => {
+    const paused = await seedTestBrand(db, { publisher: "postiz", status: "paused" });
+    await insertPost(db, { ...base({ status: "approved", planned_at: new Date(Date.now() - 1000) }), brand_id: paused });
+    const due = await insertPost(db, base({ status: "approved", planned_at: new Date(Date.now() - 1000) }));
+    expect((await claimDuePosts(db, 10)).map((p) => p.id)).toEqual([due]);
   });
 });
 

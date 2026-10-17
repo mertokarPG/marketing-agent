@@ -1,4 +1,4 @@
-import { BUCKETS, claimDuePosts, expirePendingPosts, markFailed, markPublished, type Db, type StorageClient } from "@carepost/core";
+import { BUCKETS, claimDuePosts, expireMissedApprovedPosts, expirePendingPosts, markFailed, markPublished, type Db, type StorageClient } from "@carepost/core";
 import type { Publisher } from "../publishers/types.js";
 
 export const SIGNED_URL_TTL_SEC = 3600;
@@ -18,8 +18,9 @@ async function recordFailure(
 export async function publishTick(deps: {
   db: Db; storage: StorageClient; publishers: Record<"postiz", Publisher>; notify: (s: string, b: string) => Promise<unknown>;
 }): Promise<{ expired: number; published: number; failed: number }> {
-  // Expire first: an overdue draft must be terminal before anything is claimed.
-  const expired = await expirePendingPosts(deps.db);
+  // Expire first: an overdue draft, or an approved post that missed its publish window (>6h late),
+  // must be terminal before anything is claimed.
+  const expired = (await expirePendingPosts(deps.db)) + (await expireMissedApprovedPosts(deps.db));
   let published = 0;
   let failed = 0;
   for (const post of await claimDuePosts(deps.db, 5)) {
