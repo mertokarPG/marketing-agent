@@ -9,3 +9,6 @@ dist/
 .claude/
 .obsidian/
 tmp/
+apps/*/tmp/
+apps/*/marketing-agent.db*
+apps/web/.next/
