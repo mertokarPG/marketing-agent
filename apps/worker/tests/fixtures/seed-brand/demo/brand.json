@@ -1,0 +1,8 @@
+{
+  "id": "demo", "name": "Demo Skin", "domain": "demo.be", "niche": "skincare", "description": "Gentle plant-based skincare.",
+  "competitors": [], "keywords": ["skincare"], "tone": "Calm and warm",
+  "postingSchedule": { "coreDays": ["mon","tue","wed","thu","fri"], "defaultTime": "10:00" },
+  "instagramHandle": "demoskin",
+  "branding": { "enabled": true, "logoPath": "assets/logo.png" },
+  "hotTopics": { "relevantThemes": "skincare" }
+}
