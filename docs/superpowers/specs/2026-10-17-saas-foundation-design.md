@@ -26,8 +26,10 @@ The work is split into five sub-projects, each with its own spec, plan and imple
    hand-off.
 5. Billing: Stripe subscriptions, per-brand post quotas, usage caps.
 
-Kuanyin and Cortera go live after 1–3, with onboarding done by hand. Billing ships when there
-is someone to charge.
+carephoto is **customer #1**: it moves over first, after sub-project 1. Kuanyin Skin and
+corterafashion (customers #2 and #3) **set themselves up through the product** (sub-project 4).
+They double as the usability test of onboarding, and the owner collects their feedback. So they
+start after 1–4. Billing ships when there is someone to charge.
 
 ### Decisions already made (not revisited here)
 
@@ -81,7 +83,7 @@ marketing-agent/                    (npm workspaces)
 │  └─ core/     ← DB types (generated), repository functions, BrandConfig mapping, storage helpers
 ├─ supabase/
 │  └─ migrations/  ← schema + RLS
-└─ brands/      ← kept only as seed input for scripts/seed-brand.ts
+└─ brands/      ← kept only as seed input for scripts/seed-brand.ts (carephoto + test brands)
 ```
 
 **Why a Postgres queue rather than Inngest (deviates from multi-tenant-product.md §4):** the
@@ -99,8 +101,8 @@ Every tenant-owned table has `brand_id uuid not null references brands(id) on de
 - **brands**: `id uuid pk`, `slug text unique`, `name`, `domain`, `niche`, `description`, `tone`,
   `keywords text[]`, `competitors jsonb`, `instagram_handle`, `design_system text`,
   `branding jsonb`, `carousel jsonb`, `hot_topics jsonb`, `image_generation jsonb`,
-  `posting_schedule jsonb` (`{ coreDays: ['mon','wed','fri'], defaultTime: '10:00' }`),
-  `timezone text not null` (IANA, e.g. `Europe/Istanbul`), `approval_mode text check in
+  `posting_schedule jsonb` (default `{ coreDays: ['mon','tue','wed','thu','fri'], defaultTime: '10:00' }`, i.e. 5 posts a week),
+  `timezone text not null` (IANA, default `Europe/Brussels`), `approval_mode text check in
   ('review','autopilot') default 'review'`, `status text check in ('active','paused') default
   'active'`, `publisher text null check in ('postiz')` (sub-project 2 extends this to `'meta'`),
   `created_at`.
@@ -110,8 +112,8 @@ Every tenant-owned table has `brand_id uuid not null references brands(id) on de
   ('owner','editor','viewer')`, `created_at`.
 - **brand_assets**: `id`, `brand_id`, `kind text check in ('logo','font','icon','product')`,
   `storage_path`, `label text` (e.g. product name), `metadata jsonb`, `created_at`.
-  Product photos are `kind='product'`. Upload UI comes in sub-project 4; in this sub-project they
-  are seeded by script.
+  Product photos are `kind='product'`. Brand managers upload logos and product photos
+  themselves on the brand page (sub-project 4). In this sub-project only the seed script writes them.
 - **brand_sources**: `id`, `brand_id`, `source jsonb` (one entry of today's
   `hot-topics-sources.json`).
 - **trends**: same columns as today plus `brand_id`. Today's table is global, but sources are per
@@ -237,9 +239,8 @@ interface Publisher {
 
 - `scripts/seed-brand.ts <dir>`: reads a `brand.json`-style folder (validated by the existing zod
   schema), upserts the brand, uploads assets and product photos, inserts sources, and adds the
-  owner as `owner` member. Used for carephoto, Kuanyin Skin and corterafashion. The owner
-  supplies the Kuanyin and Cortera folders: name, IG handle, website, tone notes, logo and
-  product photos. Fields can be drafted from their websites.
+  owner as `owner` member. Used for carephoto (from `brands/carephoto`) and for test brands.
+  Kuanyin and Cortera are NOT seeded; they onboard themselves in sub-project 4.
 - `scripts/migrate-sqlite.ts`: one-off import of carephoto's `posts`, `analytics`,
   `competitor_snapshots` and `trends` into Postgres. Old posts become `published`; old
   `content_calendar` rows are not imported.
@@ -274,12 +275,12 @@ interface Publisher {
 1. Supabase project + migrations; seed carephoto; import SQLite history.
 2. Deploy the worker with only carephoto active, `publisher='postiz'`, `approval_mode='autopilot'`
    (matches today's behaviour). Retire the laptop cron once a week of posts goes out correctly.
-3. Seed Kuanyin and Cortera in `review` mode, `publisher=null`. Drafts accumulate and are viewable
-   in the web app while sub-projects 2–3 are built.
+3. Kuanyin and Cortera are not part of this rollout. They sign up through onboarding
+   (sub-project 4) in `review` mode, Europe/Brussels, 5 days a week.
 
 ## Open items (do not block this spec)
 
 - The final product name/domain (Carepost / carepost.art is the working choice).
 - The carephoto Agent API PR (lula `feat/agent-api-prod`) must merge and deploy before
   `referenceImages` is used. Until then, product photos are used as-is.
-- Brand timezones and core posting days for Kuanyin and Cortera, from the owner.
+- Which 5 weekdays and what time suit each brand is chosen by the brand in onboarding (default Mon–Fri, 10:00).
