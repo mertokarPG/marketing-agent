@@ -36,10 +36,13 @@ const lostClaim = (run: RunRow, action: string) =>
 export async function executeRun(deps: RunDeps, run: RunRow): Promise<void> {
   const { db } = deps;
   let warnedBeat = false;
+  let warnedBeatError = false;
   const beat = setInterval(() => {
     void heartbeatRun(db, run.id, run.attempts).then((owned) => {
       if (!owned && !warnedBeat) { warnedBeat = true; lostClaim(run, "heartbeat"); }
-    }, () => {});
+    }, (e) => {
+      if (!warnedBeatError) { warnedBeatError = true; console.warn(`[run ${run.id}] heartbeat failed: ${msg(e)}`); }
+    });
   }, deps.heartbeatMs ?? 30_000);
   let cleanup: (() => Promise<void>) | null = null;
   try {
@@ -74,13 +77,17 @@ export async function executeRun(deps: RunDeps, run: RunRow): Promise<void> {
     if (run.attempts < (deps.maxAttempts ?? 3)) {
       if (!(await requeueRun(db, run.id, run.attempts, msg(e)))) lostClaim(run, "re-queue");
     } else if (await finishRun(db, run.id, run.attempts, { status: "failed", error: msg(e) })) {
-      await notifyRunFailed(deps, run, msg(e));
+      try { await notifyRunFailed(deps, run, msg(e)); }
+      catch (ne) { console.warn(`[run ${run.id}] failure notification failed: ${msg(ne)}`); }
     } else {
       lostClaim(run, "failure");
     }
   } finally {
     clearInterval(beat);
-    if (cleanup) await cleanup();
+    if (cleanup) {
+      try { await cleanup(); }
+      catch (e) { console.warn(`[run ${run.id}] temp dir cleanup failed: ${msg(e)}`); }
+    }
   }
 }
 

@@ -84,6 +84,29 @@ describe("executeRun", () => {
     expect(to).toBeUndefined(); // no recipients → platform owner
   });
 
+  it("still marks the run failed when the owner notification rejects", async () => {
+    deps.agent = vi.fn().mockRejectedValue(new Error("anthropic 529"));
+    deps.notify = vi.fn().mockRejectedValue(new Error("smtp down"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await enqueueRun(db, brandId, "daily_check", "2026-10-18");
+    await executeRun(deps, (await claimNextRun(db))!);
+    await executeRun(deps, (await claimNextRun(db))!);
+    await expect(executeRun(deps, (await claimNextRun(db))!)).resolves.toBeUndefined();
+    expect(await runRow()).toMatchObject({ status: "failed", attempts: 3, error: "anthropic 529" });
+    expect(deps.notify).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("failure notification failed"));
+    warn.mockRestore();
+  });
+
+  it("removes the temp brand dir and re-queues when the agent throws", async () => {
+    deps.agent = vi.fn().mockRejectedValue(new Error("anthropic 529"));
+    await enqueueRun(db, brandId, "daily_check", "2026-10-18");
+    await executeRun(deps, (await claimNextRun(db))!);
+    const brandDir = (deps.agent as any).mock.calls[0][0].brandDir;
+    expect(fs.existsSync(brandDir)).toBe(false);
+    expect(await runRow()).toMatchObject({ status: "queued", attempts: 1, error: "anthropic 529" });
+  });
+
   it("heartbeats while the agent is running", async () => {
     const id = await enqueueRun(db, brandId, "daily_check", "2026-10-18");
     const run = (await claimNextRun(db))!;
