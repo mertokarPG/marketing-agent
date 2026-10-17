@@ -13,3 +13,6 @@ apps/*/tmp/
 apps/*/marketing-agent.db*
 apps/web/.next/
 apps/web/next-env.d.ts
+.env.local
+.env*.local
+supabase/.temp/
