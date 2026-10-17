@@ -35,23 +35,33 @@ export async function claimRunById(db: Db, id: string): Promise<RunRow | null> {
   return rows[0] ?? null;
 }
 
-export async function heartbeatRun(db: Db, id: string): Promise<void> {
-  await db.query("update agent_runs set heartbeat_at = now() where id = $1 and status = 'running'", [id]);
+// Writes by a run's claimant are guarded by the attempt number it claimed: once a stalled run is
+// recovered and re-claimed (attempts + 1), the old claimant can no longer heartbeat, finish or re-queue it.
+const OWNED = `id = $1 and status = 'running' and attempts = $2`;
+
+export async function heartbeatRun(db: Db, id: string, claimedAttempts: number): Promise<boolean> {
+  const rows = await db.query(`update agent_runs set heartbeat_at = now() where ${OWNED} returning id`, [id, claimedAttempts]);
+  return rows.length > 0;
 }
 
 export async function finishRun(
-  db: Db, id: string,
+  db: Db, id: string, claimedAttempts: number,
   r: { status: "succeeded" | "failed"; summary?: string | null; error?: string | null; inputTokens?: number; outputTokens?: number; imageCount?: number }
-): Promise<void> {
-  await db.query(
-    `update agent_runs set status = $2, finished_at = now(), summary = $3, error = $4,
-       input_tokens = $5, output_tokens = $6, image_count = $7 where id = $1`,
-    [id, r.status, r.summary ?? null, r.error ?? null, r.inputTokens ?? 0, r.outputTokens ?? 0, r.imageCount ?? 0]
+): Promise<boolean> {
+  const rows = await db.query(
+    `update agent_runs set status = $3, finished_at = now(), summary = $4, error = $5,
+       input_tokens = $6, output_tokens = $7, image_count = $8 where ${OWNED} returning id`,
+    [id, claimedAttempts, r.status, r.summary ?? null, r.error ?? null, r.inputTokens ?? 0, r.outputTokens ?? 0, r.imageCount ?? 0]
   );
+  return rows.length > 0;
 }
 
-export async function requeueRun(db: Db, id: string, error: string): Promise<void> {
-  await db.query("update agent_runs set status = 'queued', error = $2, heartbeat_at = null where id = $1", [id, error]);
+export async function requeueRun(db: Db, id: string, claimedAttempts: number, error: string): Promise<boolean> {
+  const rows = await db.query(
+    `update agent_runs set status = 'queued', error = $3, heartbeat_at = null where ${OWNED} returning id`,
+    [id, claimedAttempts, error]
+  );
+  return rows.length > 0;
 }
 
 export async function recoverStaleRuns(
