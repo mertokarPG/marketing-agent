@@ -78,13 +78,13 @@ Note the free plan allows 2 active projects per org; pause or upgrade another on
 
 ## 3. Local env for seeding and smoke runs
 
-- [ ] Create `apps/worker/.env` on your laptop (the worker's cwd is `apps/worker`, so dotenv reads it there). Start from `apps/worker/.env.example` and fill at least `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `OWNER_EMAIL`, plus `FIRECRAWL_API_KEY`, `SMTP_*`, `CAREPHOTO_*` from your old `.env`. It is git-ignored.
+- [ ] Create `apps/worker/.env` on your laptop (the worker's cwd is `apps/worker`, so dotenv reads it there). Start from `apps/worker/.env.example` and fill at least `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `OWNER_EMAIL`, plus `FIRECRAWL_API_KEY`, `SMTP_*`, `CAREPHOTO_*` from your old `.env`. `NOTIFY_EMAIL` is optional (default recipient for agent summaries; falls back to `OWNER_EMAIL`). It is git-ignored.
 - [ ] For local web dev only: `apps/web/.env.local` with the three `NEXT_PUBLIC_*` values.
 - [ ] Install: `npm ci` at the repo root.
 
 ## 4. Seed brands (carephoto in review mode, plus a test brand)
 
-`brands/carephoto/brand.json` says `autopilot` + `postiz`, and `seed-brand` upserts those onto the row. So seed, then immediately force the safe state before any worker exists:
+`brands/carephoto/brand.json` says `autopilot` + `postiz`, and the **first** `seed-brand` inserts those onto the new row. So seed, then immediately force the safe state before any worker exists:
 
 - [ ] Seed carephoto (note the **UUID it prints**; it is the `POSTIZ_BRAND_ID` for step 6):
   ```bash
@@ -92,11 +92,13 @@ Note the free plan allows 2 active projects per org; pause or upgrade another on
   npm run seed-brand -- brands/carephoto okar.mert@gmail.com
   # -> seeded brand <carephoto-uuid>
   ```
-- [ ] Put carephoto in the safe state (Dashboard -> SQL editor, or `psql "$DATABASE_URL"`):
+- [ ] Put carephoto in the safe state (Dashboard -> SQL editor, or `psql "$DATABASE_URL"`): review mode, no publisher, and **paused**:
   ```sql
-  update brands set approval_mode = 'review', publisher = null where slug = 'carephoto';
+  update brands set approval_mode = 'review', publisher = null, status = 'paused' where slug = 'carephoto';
+  select slug, status, approval_mode, publisher from brands where slug = 'carephoto';  -- expect paused | review | null
   ```
-  Do **not** re-run `seed-brand` for carephoto afterwards without redoing this, because it resets both columns from `brand.json`.
+  Why paused: once the worker is deployed (step 6) its scheduler would otherwise create carephoto weekly/daily runs and review drafts between the deploy and the cutover (step 8). Those drafts would sit `pending_approval`, then expire, and occupy core dates in the meantime. A paused brand gets no scheduled runs, and the run queue and publisher skip it. Manual CLI runs (`npm run agent`) still work for it. carephoto stays paused until step 8.
+  Re-running `seed-brand` later is safe: on an existing brand it refreshes the brand.json content but never touches `approval_mode`, `publisher` or `status`. (Only the first insert takes `approval_mode`/`publisher` from `brand.json`, which is why this SQL is needed once.)
 - [ ] Seed the throwaway test brand (fixture in review mode, no publisher, no image generation):
   ```bash
   npm run seed-brand -- tests/fixtures/seed-brand/demo okar.mert@gmail.com
@@ -116,7 +118,7 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
 - [ ] In the web app, open the `demo` brand: the draft is there **with its images visible** (this exercises signed URLs through the storage policy).
 - [ ] Non-member check (storage + RLS by hand): sign in to the web app with a second email that is not a member of any brand; it must see no brands and no drafts. Optionally, from that session, confirm a signed URL for `post-media/<demo-brand-uuid>/...` is refused.
 - [ ] Clean up if you like: `update posts set status = 'rejected' where brand_id = (select id from brands where slug = 'demo');`
-- [ ] Optional: `npm run agent -- --brand carephoto --kind manual` also works now, still draft-only because carephoto has `publisher = null`. Note: a carephoto draft created while `publisher = null` stays `pending_approval` after the autopilot flip in step 8. Reject it now (`update posts set status = 'rejected' where id = '<id>'`) or let it expire; never approve it later by accident, since it would then publish.
+- [ ] Optional: `npm run agent -- --brand carephoto --kind manual` also works now (CLI runs ignore `paused`), still draft-only because carephoto has `publisher = null`. CLI runs get one attempt: if one fails it is marked `failed` and you simply re-run the command. Note: a carephoto draft created while `publisher = null` stays `pending_approval` after the autopilot flip in step 8. Reject it now (`update posts set status = 'rejected' where id = '<id>'`) or let it expire; never approve it later by accident, since it would then publish.
 
 ## 6. Worker (Railway)
 
@@ -130,6 +132,7 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
   SUPABASE_SERVICE_ROLE_KEY
   ANTHROPIC_API_KEY
   OWNER_EMAIL=okar.mert@gmail.com
+  NOTIFY_EMAIL            (optional; default recipient of agent summaries, falls back to OWNER_EMAIL)
   WORKER_CONCURRENCY=2
   CAREPHOTO_API_KEY
   CAREPHOTO_BASE_URL
@@ -148,7 +151,12 @@ This uses your real `ANTHROPIC_API_KEY`. The test brand has no publisher, so not
     railway link
     railway run --service <worker-service> -- npm run agent -- --brand demo --kind manual --brief "Draft one carousel test post."
     ```
-    (`railway run` uses Railway's variables but executes on your laptop. To exercise the *container*, instead wait for the scheduled weekly/daily run for a brand, or open a Railway shell on the deployed service with `railway ssh` and run the same command there, then check logs for Puppeteer/Chromium errors.)
+    (`railway run` uses Railway's variables but executes on your laptop. To exercise the *container*, instead wait for the scheduled weekly/daily run for the `demo` brand (the only active brand now), or open a Railway shell on the deployed service with `railway ssh` and run the same command there, then check logs for Puppeteer/Chromium errors.)
+- [ ] Logs show **no** carephoto runs (it is paused). Check: `select kind, period_key, status from agent_runs where brand_id = (select id from brands where slug = 'carephoto');` returns only your own CLI runs.
+- [ ] After the smoke tests (step 5 and the container check above) **pause the demo brand**, so the scheduler stops spending Anthropic tokens on it every day. CLI runs still work for it if you need another test:
+  ```sql
+  update brands set status = 'paused' where slug = 'demo';
+  ```
 
 ## 7. Import history from SQLite (before autopilot)
 
@@ -163,13 +171,40 @@ Imported rows have status `published`, so they can never be republished, and the
 ## 8. Enable carephoto autopilot (cutover)
 
 - [ ] **Re-check the Postiz calendar** for old-system scheduled posts (step 0) once more; delete or work around any that remain.
-- [ ] Only now enable carephoto autopilot. Prerequisites: step 0 done, steps 4, 5 and 7 clean, worker healthy, `POSTIZ_BRAND_ID` matches.
+- [ ] Clear leftover carephoto drafts from the review period (step 5's optional manual run). They are `pending_approval` and would stay so after the flip, occupying their core dates:
   ```sql
-  update brands set approval_mode = 'autopilot', publisher = 'postiz' where slug = 'carephoto';
+  select id, kind, status, planned_at from posts
+   where brand_id = (select id from brands where slug = 'carephoto') and status in ('pending_approval','approved');
+  update posts set status = 'rejected'
+   where brand_id = (select id from brands where slug = 'carephoto') and status = 'pending_approval';
   ```
-- [ ] Watch **one** publish end to end: the worker log shows `[publish] { published: 1 }`, the post appears on Instagram, the post row is `published` in the web app. If anything is off, revert immediately:
+- [ ] Only now enable carephoto: **unpause it together with** autopilot and the publisher, in one statement. Prerequisites: step 0 done, steps 4, 5 and 7 clean, worker healthy, `POSTIZ_BRAND_ID` matches.
   ```sql
-  update brands set approval_mode = 'review', publisher = null where slug = 'carephoto';
+  update brands set status = 'active', approval_mode = 'autopilot', publisher = 'postiz' where slug = 'carephoto';
+  select slug, status, approval_mode, publisher from brands where slug = 'carephoto';  -- expect active | autopilot | postiz
+  ```
+- [ ] Trigger the first plan. The scheduler plans the coming week on **Sunday 09:00** Brussels time (with a 6 h catch-up, so a flip on Sunday before 15:00 is picked up within a minute: skip the command below). The daily check runs at 08:00. To start mid-week, plan the **current** ISO week by hand:
+  ```bash
+  cd apps/worker
+  date +%G-W%V                       # current ISO week, e.g. 2026-W43
+  npm run agent -- --brand carephoto --kind weekly_plan --period <current ISO week>
+  ```
+  (Run it on your laptop with the step 3 `.env`, or inside the container via `railway ssh`.) This is safe mid-week: the weekly window then starts at now + 15 min, so it only plans the remaining core days and can never backdate a post. The command prints the run row; expect `status: 'succeeded'` and approved posts:
+  ```sql
+  select kind, status, planned_at at time zone 'Europe/Brussels' as local_time from posts
+   where brand_id = (select id from brands where slug = 'carephoto') and status in ('approved','pending_approval')
+   order by planned_at;
+  ```
+  If it fails, it is marked `failed` (CLI runs are never retried). Because a period can only exist once per brand, delete that failed row before re-running: `delete from agent_runs where brand_id = (select id from brands where slug = 'carephoto') and kind = 'weekly_plan' and period_key = '<week>' and status = 'failed';`
+- [ ] Watch **one** publish end to end. The next approved post publishes within a minute after its `planned_at` (core slots are 10:00 local on weekdays): the worker log (Railway -> Deployments -> Logs) shows `[publish] { expired: 0, published: 1, failed: 0 }`, the post appears on Instagram, and the row is `published` with an external id:
+  ```sql
+  select status, planned_at, published_at, external_post_id, publish_error from posts
+   where brand_id = (select id from brands where slug = 'carephoto') and planned_at <= now()
+   order by planned_at desc limit 3;
+  ```
+  A `failed` row has the reason in `publish_error` and you get an email. Approved posts more than 6 h past their time are expired (`publish_error = 'missed publish window'`), never published late. If anything is off, revert immediately (paused + no publisher: nothing is planned or published):
+  ```sql
+  update brands set status = 'paused', approval_mode = 'review', publisher = null where slug = 'carephoto';
   ```
 - [ ] After a week of correct posts, remove the `demo` brand if you do not want it listed.
 
