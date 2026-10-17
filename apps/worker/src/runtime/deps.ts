@@ -34,6 +34,12 @@ export function withUserBrief(agent: RunDeps["agent"], brief: string | undefined
   return (b, d, o) => agent(b, d, { ...o, userBrief: brief });
 }
 
+/** CLI runs carry the operator's brief and get exactly one attempt: a failure marks the run failed
+ *  (the queue never retries a CLI run, since the brief only lives in the CLI process). */
+export function cliRunDeps(runDeps: RunDeps, brief: string | undefined): RunDeps {
+  return { ...runDeps, agent: withUserBrief(runDeps.agent, brief), maxAttempts: 1 };
+}
+
 export function buildDeps(rawEnv: NodeJS.ProcessEnv) {
   const env = readWorkerEnv(rawEnv);
   const db = createPostgresDb(env.DATABASE_URL);

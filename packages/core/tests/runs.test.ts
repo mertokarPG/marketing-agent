@@ -32,8 +32,8 @@ describe("run queue", () => {
   });
 
   it("does not touch fresh running runs", async () => {
-    await enqueueRun(db, brand, "manual", "m1");
-    const run = await claimNextRun(db);
+    const m1 = await enqueueRun(db, brand, "manual", "m1");
+    const run = await claimRunById(db, m1!);
     expect(await recoverStaleRuns(db)).toEqual({ requeued: 0, failed: 0, failedRuns: [] });
     expect(await finishRun(db, run!.id, run!.attempts, { status: "succeeded", summary: "ok", inputTokens: 10 })).toBe(true);
     const [row] = await db.query("select status, input_tokens from agent_runs where id = $1", [run!.id]);
@@ -46,7 +46,7 @@ describe("run queue", () => {
 
   it("heartbeats and re-queues the claimant's own running run", async () => {
     const id = await enqueueRun(db, brand, "manual", "m2");
-    const run = await claimNextRun(db);
+    const run = await claimRunById(db, id!);
     await db.query("update agent_runs set heartbeat_at = now() - interval '5 minutes' where id = $1", [id]);
     expect(await heartbeatRun(db, id!, run!.attempts)).toBe(true);
     const [beat] = await db.query<{ fresh: boolean }>(
@@ -77,5 +77,34 @@ describe("run queue", () => {
     expect(await finishRun(db, id!, fresh.attempts, { status: "succeeded", summary: "fresh" })).toBe(true);
     const [done] = await db.query("select status, summary from agent_runs where id = $1", [id]);
     expect(done).toEqual({ status: "succeeded", summary: "fresh" });
+  });
+
+  it("never claims a queued manual run from the queue (CLI-only), but claimRunById does", async () => {
+    const manual = await enqueueRun(db, brand, "manual", "m3");
+    const daily = await enqueueRun(db, brand, "daily_check", "2026-10-18");
+    expect((await claimNextRun(db))?.id).toBe(daily);
+    expect(await claimNextRun(db)).toBeNull();
+    expect((await claimRunById(db, manual!))?.status).toBe("running");
+  });
+
+  it("fails a stale manual run straight away instead of re-queueing it", async () => {
+    const id = await enqueueRun(db, brand, "manual", "m4");
+    await claimRunById(db, id!);
+    await db.query("update agent_runs set heartbeat_at = now() - interval '11 minutes' where id = $1", [id]);
+    const res = await recoverStaleRuns(db);
+    expect(res.requeued).toBe(0);
+    expect(res.failed).toBe(1);
+    expect(res.failedRuns.map((r) => r.id)).toEqual([id]);
+    const [row] = await db.query<{ status: string; error: string; done: boolean }>(
+      "select status, error, finished_at is not null as done from agent_runs where id = $1", [id]);
+    expect(row).toEqual({ status: "failed", error: "manual run interrupted; re-run from the CLI", done: true });
+  });
+
+  it("only claims runs of active brands", async () => {
+    const paused = await seedTestBrand(db, { status: "paused" });
+    await enqueueRun(db, paused, "daily_check", "2026-10-18");
+    const active = await enqueueRun(db, brand, "daily_check", "2026-10-19");
+    expect((await claimNextRun(db))?.id).toBe(active);
+    expect(await claimNextRun(db)).toBeNull();
   });
 });

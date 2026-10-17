@@ -19,11 +19,15 @@ export async function enqueueRun(db: Db, brandId: string, kind: RunKind, periodK
 
 const CLAIM_SET = `status = 'running', started_at = now(), heartbeat_at = now(), attempts = attempts + 1, error = null`;
 
+/** Claims the oldest queued scheduled run of an active brand. Manual runs are CLI-only (their brief
+ *  lives in the CLI process), so the queue never picks them up; the CLI claims them with claimRunById. */
 export async function claimNextRun(db: Db): Promise<RunRow | null> {
   const rows = await db.query<RunRow>(
     `update agent_runs set ${CLAIM_SET}
-     where id = (select id from agent_runs where status = 'queued' order by created_at
-                 for update skip locked limit 1)
+     where id = (select r.id from agent_runs r join brands b on b.id = r.brand_id
+                 where r.status = 'queued' and r.kind <> 'manual' and b.status = 'active'
+                 order by r.created_at
+                 for update of r skip locked limit 1)
      returning *`
   );
   return rows[0] ?? null;
@@ -67,10 +71,13 @@ export async function requeueRun(db: Db, id: string, claimedAttempts: number, er
 export async function recoverStaleRuns(
   db: Db, opts: { staleMinutes?: number; maxAttempts?: number } = {}
 ): Promise<{ requeued: number; failed: number; failedRuns: RunRow[] }> {
+  // A manual run cannot be retried without its CLI brief, so it fails instead of being re-queued.
   const rows = await db.query<RunRow>(
     `update agent_runs
-       set status = case when attempts >= $2 then 'failed' else 'queued' end,
-           error = 'worker heartbeat lost', finished_at = case when attempts >= $2 then now() else null end
+       set status = case when attempts >= $2 or kind = 'manual' then 'failed' else 'queued' end,
+           error = case when kind = 'manual' then 'manual run interrupted; re-run from the CLI'
+                        else 'worker heartbeat lost' end,
+           finished_at = case when attempts >= $2 or kind = 'manual' then now() else null end
      where status = 'running' and heartbeat_at < now() - make_interval(mins => $1)
      returning *`,
     [opts.staleMinutes ?? 10, opts.maxAttempts ?? 3]

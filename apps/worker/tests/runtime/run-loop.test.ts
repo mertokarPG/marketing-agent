@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
-import { MemoryStorage, enqueueRun, claimNextRun, recoverStaleRuns, type Db } from "@carepost/core";
+import { MemoryStorage, enqueueRun, claimNextRun, claimRunById, recoverStaleRuns, type Db } from "@carepost/core";
 import { createTestDb, seedTestBrand } from "@carepost/core/testing";
 import { executeRun, runLoopTick, type RunDeps } from "../../src/runtime/run-loop.js";
+import { cliRunDeps } from "../../src/runtime/deps.js";
 
 let db: Db;
 let brandId: string;
@@ -178,7 +179,37 @@ describe("runLoopTick", () => {
     expect(deps.agent).not.toHaveBeenCalled();
   });
 
+  it("fails (never re-queues) a stale manual run and does not run it", async () => {
+    const id = await enqueueRun(db, brandId, "manual", "manual-1");
+    await claimRunById(db, id!);
+    await db.query("update agent_runs set heartbeat_at = now() - interval '11 minutes' where id = $1", [id]);
+    expect(await runLoopTick(deps)).toBe(false);
+    expect(await runRow()).toMatchObject({ status: "failed", attempts: 1, error: "manual run interrupted; re-run from the CLI" });
+    expect(deps.notify).toHaveBeenCalledTimes(1);
+    expect(deps.agent).not.toHaveBeenCalled();
+  });
+
+  it("never picks up a queued manual run", async () => {
+    await enqueueRun(db, brandId, "manual", "manual-2");
+    expect(await runLoopTick(deps)).toBe(false);
+    expect(await runRow()).toMatchObject({ status: "queued", attempts: 0 });
+    expect(deps.agent).not.toHaveBeenCalled();
+  });
+
   it("returns false when the queue is empty", async () => {
     expect(await runLoopTick(deps)).toBe(false);
+  });
+});
+
+describe("cliRunDeps", () => {
+  it("runs with one attempt: a CLI failure marks the run failed, never re-queued", async () => {
+    deps.agent = vi.fn().mockRejectedValue(new Error("anthropic 529"));
+    const id = await enqueueRun(db, brandId, "manual", "manual-3");
+    const cli = cliRunDeps(deps, "make it about snow");
+    expect(cli.maxAttempts).toBe(1);
+    await executeRun(cli, (await claimRunById(db, id!))!);
+    expect(await runRow()).toMatchObject({ status: "failed", attempts: 1, error: "anthropic 529" });
+    expect((deps.agent as any).mock.calls[0][2].userBrief).toBe("make it about snow");
+    expect(deps.notify).toHaveBeenCalledTimes(1);
   });
 });
