@@ -31,6 +31,8 @@ export async function seedBrandFromDir(deps: { db: Db; storage: StorageClient },
     }
   }
 
+  // approval_mode and publisher come from brand.json on the FIRST insert only; on re-seed they (and
+  // status) keep whatever the operator set, so a re-seed can never re-enable autopilot or publishing.
   const [brand] = await db.query<{ id: string }>(
     `insert into brands (slug, name, domain, niche, description, tone, keywords, competitors, instagram_handle, design_system,
        prompt_bank_path, branding, carousel, hot_topics, image_generation, posting_schedule, timezone, approval_mode, publisher)
@@ -39,8 +41,7 @@ export async function seedBrandFromDir(deps: { db: Db; storage: StorageClient },
        description = excluded.description, tone = excluded.tone, keywords = excluded.keywords, competitors = excluded.competitors,
        instagram_handle = excluded.instagram_handle, design_system = excluded.design_system, prompt_bank_path = excluded.prompt_bank_path,
        branding = excluded.branding, carousel = excluded.carousel, hot_topics = excluded.hot_topics,
-       image_generation = excluded.image_generation, posting_schedule = excluded.posting_schedule, timezone = excluded.timezone,
-       approval_mode = excluded.approval_mode, publisher = excluded.publisher
+       image_generation = excluded.image_generation, posting_schedule = excluded.posting_schedule, timezone = excluded.timezone
      returning id`,
     [file.id, file.name, file.domain, file.niche, file.description, file.tone, file.keywords, JSON.stringify(file.competitors),
      file.instagramHandle ?? null, file.designSystem ?? null, file.promptBankPath ?? null, JSON.stringify(branding),

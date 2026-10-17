@@ -32,3 +32,18 @@ it("asks the owner to sign in first when the email is unknown", async () => {
   const { db } = await createTestDb();
   await expect(seedBrandFromDir({ db, storage: new MemoryStorage() }, DIR, "nobody@demo.be")).rejects.toThrow(/sign in to the web app/i);
 });
+
+it("re-seeding never overwrites approval_mode, publisher or status of an existing brand", async () => {
+  const { db } = await createTestDb();
+  await db.query("insert into auth.users (id, email) values (gen_random_uuid(), 'owner@demo.be')");
+  const storage = new MemoryStorage();
+  const id = await seedBrandFromDir({ db, storage }, DIR, "owner@demo.be");
+  const [first] = await db.query("select approval_mode, publisher, status from brands where id = $1", [id]);
+  expect(first).toEqual({ approval_mode: "review", publisher: null, status: "active" }); // first insert: from brand.json
+
+  await db.query("update brands set approval_mode = 'autopilot', publisher = 'postiz', status = 'paused', name = 'Old' where id = $1", [id]);
+  await seedBrandFromDir({ db, storage }, DIR, "owner@demo.be");
+  const [after] = await db.query("select approval_mode, publisher, status, name from brands where id = $1", [id]);
+  expect(after).toMatchObject({ approval_mode: "autopilot", publisher: "postiz", status: "paused" });
+  expect(after.name).not.toBe("Old"); // file-owned columns are still refreshed
+});
