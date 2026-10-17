@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "../lib/browser.js";
 import type { ReactJsxManifest } from "../config/load-design-system.js";
 
 const SLIDE_W = 1080;
@@ -105,9 +105,8 @@ export async function renderReactSlide(input: RenderReactSlideInput): Promise<st
 
   const html = buildHtml(input);
   const t0 = Date.now();
-  const browser = await puppeteer.launch({
+  const browser = await launchBrowser({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
     timeout: 20000,
     protocolTimeout: 40000,
   });

@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "../lib/browser.js";
 import { loadImageSource } from "./image-source.js";
 
 const CANVAS_WIDTH = 1080;
@@ -259,9 +259,8 @@ export async function renderPhotoOverlay(input: PhotoOverlayInput): Promise<stri
 
   // Render
   const t0 = Date.now();
-  const browser = await puppeteer.launch({
+  const browser = await launchBrowser({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
     timeout: 20000,
     protocolTimeout: 30000,
   });

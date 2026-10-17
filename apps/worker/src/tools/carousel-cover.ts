@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "../lib/browser.js";
 import {
   renderGradientHtml,
   pickRandomMood,
@@ -351,9 +351,8 @@ export async function renderCarouselCover(input: CarouselCoverInput): Promise<st
 
   // Render with Puppeteer. protocolTimeout capped so we fail loud instead of hanging 3 min.
   const t0 = Date.now();
-  const browser = await puppeteer.launch({
+  const browser = await launchBrowser({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
     timeout: 20000,
     protocolTimeout: 30000,
   });

@@ -2,7 +2,7 @@
 // Palettes are mood-based; blob positions are randomized per render for variety.
 
 import sharp from "sharp";
-import puppeteer from "puppeteer";
+import { launchBrowser } from "./browser.js";
 
 export type GradientMood =
   | "aurora"
@@ -231,9 +231,8 @@ export async function renderGradientPng(
   const gradientHtml = await renderGradientHtml({ mood, seed });
   const html = `<!DOCTYPE html><html><body style="margin:0;width:${width}px;height:${height}px;position:relative;overflow:hidden;">${gradientHtml}</body></html>`;
 
-  const browser = await puppeteer.launch({
+  const browser = await launchBrowser({
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
     timeout: 20000,
     protocolTimeout: 30000,
   });
