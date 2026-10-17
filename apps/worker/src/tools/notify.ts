@@ -9,7 +9,8 @@ export async function sendNotification(
   const smtpPort = process.env.SMTP_PORT;
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
-  const notifyEmail = process.env.NOTIFY_EMAIL;
+  // Default recipient: NOTIFY_EMAIL (optional), else the platform owner.
+  const notifyEmail = process.env.NOTIFY_EMAIL || process.env.OWNER_EMAIL;
 
   const recipients = opts.to && opts.to.length > 0 ? opts.to : notifyEmail ? [notifyEmail] : [];
 

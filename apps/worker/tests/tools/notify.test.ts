@@ -40,4 +40,15 @@ describe("sendNotification", () => {
     const result = await sendNotification("Timely post", "body", { to: ["a@x.be", "b@x.be"] });
     expect(result).toContain("a@x.be, b@x.be");
   });
+
+  it("falls back to OWNER_EMAIL when NOTIFY_EMAIL is unset", async () => {
+    vi.stubEnv("NOTIFY_EMAIL", "");
+    vi.stubEnv("OWNER_EMAIL", "owner@x.be");
+    expect(await sendNotification("Weekly plan", "body")).toBe('Notification sent to owner@x.be: "Weekly plan"');
+  });
+
+  it("prefers NOTIFY_EMAIL over OWNER_EMAIL", async () => {
+    vi.stubEnv("OWNER_EMAIL", "owner@x.be");
+    expect(await sendNotification("Weekly plan", "body")).toBe('Notification sent to mert@test.com: "Weekly plan"');
+  });
 });
