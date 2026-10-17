@@ -1,1 +1,20 @@
-{"name":"@carepost/web","private":true,"version":"0.0.0"}
+{
+  "name": "@carepost/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "dev": "next dev", "build": "next build", "start": "next start", "test": "vitest run", "typecheck": "tsc --noEmit -p ." },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.117.2"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/node": "^22.10.0",
+    "vitest": "3.2.4"
+  }
+}
