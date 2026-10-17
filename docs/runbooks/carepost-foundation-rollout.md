@@ -26,9 +26,9 @@ Key placement rule: the **service-role key lives only on the worker**. The web a
   ```
 - [ ] **Clear legacy scheduled posts in Postiz.** The old `schedule-post` used type `schedule` for future dates, so posts may still be queued in Postiz after the laptop is stopped. The worker only knows its own `posts` table and will not see them, so both would publish. Open the Postiz calendar (week and month view, a few weeks ahead) and list every carephoto post already scheduled by the old system. For each one, do one of:
   - Delete it in Postiz (preferred), or
-  - Note its date and leave that day unplanned: delete any worker draft for that local date (`update posts set status = 'rejected' where brand_id = (select id from brands where slug = 'carephoto') and status in ('pending_approval','scheduled') and (planned_at at time zone 'Europe/Brussels')::date = '<YYYY-MM-DD>';`) and do not run a weekly plan covering it until it has passed.
+  - Note its date and leave that day unplanned: reject any worker draft (including approved ones, which the publisher would pick up) for that local date (`update posts set status = 'rejected' where brand_id = (select id from brands where slug = 'carephoto') and status in ('pending_approval','approved') and (planned_at at time zone 'Europe/Brussels')::date = '<YYYY-MM-DD>';`) and do not run a weekly plan covering it until it has passed.
   Write the dates you found here: ______ . This is re-checked in step 8 right before autopilot.
-- [ ] Keep `marketing-agent.db` (the old SQLite file); step 5 imports it.
+- [ ] Keep `marketing-agent.db` (the old SQLite file); step 7 imports it.
 
 ## 1. Supabase
 
