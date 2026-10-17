@@ -42,6 +42,21 @@ describe("posts", () => {
     expect(await hasCorePostOnLocalDate(db, brand, "Europe/Brussels", "2026-10-20")).toBe(false);
   });
 
+  it("treats Brussels local-date boundary correctly", async () => {
+    await insertPost(db, base({ planned_at: new Date("2026-10-19T22:30:00Z") }));
+    expect(await hasCorePostOnLocalDate(db, brand, "Europe/Brussels", "2026-10-19")).toBe(false);
+    expect(await hasCorePostOnLocalDate(db, brand, "Europe/Brussels", "2026-10-20")).toBe(true);
+  });
+
+  it("does not approve another brand's post", async () => {
+    const other = await seedTestBrand(db);
+    const id = await insertPost(db, base({ brand_id: other }));
+    expect(await approvePost(db, brand, id)).toBe(false);
+    const [row] = await db.query("select status from posts where id = $1", [id]);
+    expect(row.status).toBe("pending_approval");
+    expect(await approvePost(db, other, id)).toBe(true);
+  });
+
   it("counts posts per run", async () => {
     const run = await enqueueRun(db, brand, "daily_check", "2026-10-19");
     await insertPost(db, base({ run_id: run, kind: "timely" }));
@@ -51,14 +66,14 @@ describe("posts", () => {
   it("expires late drafts and refuses to approve them", async () => {
     const id = await insertPost(db, base({ planned_at: new Date(Date.now() - 60_000) }));
     expect(await expirePendingPosts(db)).toBe(1);
-    expect(await approvePost(db, id)).toBe(false);
+    expect(await approvePost(db, brand, id)).toBe(false);
     const [row] = await db.query("select status from posts where id = $1", [id]);
     expect(row.status).toBe("expired");
   });
 
   it("approves a future draft", async () => {
     const id = await insertPost(db, base());
-    expect(await approvePost(db, id)).toBe(true);
+    expect(await approvePost(db, brand, id)).toBe(true);
   });
 
   it("claims due approved posts only for brands with a publisher", async () => {

@@ -86,9 +86,9 @@ export async function expirePendingPosts(db: Db): Promise<number> {
   return rows.length;
 }
 
-export async function approvePost(db: Db, id: string): Promise<boolean> {
+export async function approvePost(db: Db, brandId: string, id: string): Promise<boolean> {
   const rows = await db.query(
-    "update posts set status = 'approved' where id = $1 and status = 'pending_approval' and planned_at > now() returning id", [id]);
+    "update posts set status = 'approved' where id = $1 and brand_id = $2 and status = 'pending_approval' and planned_at > now() returning id", [id, brandId]);
   return rows.length === 1;
 }
 

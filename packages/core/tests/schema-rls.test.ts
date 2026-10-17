@@ -54,4 +54,46 @@ describe("RLS", () => {
     expect(await enqueueRun(db, brandA, "daily_check", "2026-10-19")).not.toBeNull();
     expect(await enqueueRun(db, brandA, "daily_check", "2026-10-19")).toBeNull();
   });
+
+  describe("every tenant table", () => {
+    const tables = ["brands", "brand_members", "brand_assets", "brand_sources", "trends", "posts", "post_metrics", "competitor_snapshots", "agent_runs"];
+    const stranger = "99999999-9999-9999-9999-999999999999";
+    const denied = (t: string): string => ({
+      brands: "insert into brands (slug, name) values ('zz-new','n')",
+      brand_members: `insert into brand_members (brand_id, user_id, role) values ('${brandA}','${alice}','viewer')`,
+      brand_assets: `insert into brand_assets (brand_id, kind, storage_path) values ('${brandA}','logo','zz')`,
+      brand_sources: `insert into brand_sources (brand_id, source) values ('${brandA}','{}')`,
+      trends: `insert into trends (brand_id, source_id, category, title, url) values ('${brandA}','s','c','t','zz')`,
+      posts: `insert into posts (brand_id, kind, status, planned_at, caption) values ('${brandA}','core','pending_approval',now(),'c')`,
+      post_metrics: `insert into post_metrics (post_id, brand_id) values (gen_random_uuid(),'${brandA}')`,
+      competitor_snapshots: `insert into competitor_snapshots (brand_id, competitor_name) values ('${brandA}','n')`,
+      agent_runs: `insert into agent_runs (brand_id, kind, period_key) values ('${brandA}','manual','zz')`,
+    } as Record<string, string>)[t];
+    const scope = (t: string) => (t === "brands" ? "id" : "brand_id");
+
+    beforeEach(async () => {
+      for (const b of [brandA, brandB]) {
+        await db.query("insert into brand_assets (brand_id, kind, storage_path) values ($1,'logo',$2)", [b, `${b}/logo.png`]);
+        await db.query("insert into brand_sources (brand_id, source) values ($1,'{}')", [b]);
+        await db.query("insert into trends (brand_id, source_id, category, title, url) values ($1,'s','c','t',$2)", [b, `https://x/${b}`]);
+        await db.query("insert into agent_runs (brand_id, kind, period_key) values ($1,'manual','k')", [b]);
+        const [p] = await db.query<{ id: string }>(
+          "insert into posts (brand_id, kind, status, planned_at, caption) values ($1,'core','pending_approval', now(), 'c') returning id", [b]);
+        await db.query("insert into post_metrics (post_id, brand_id) values ($1,$2)", [p.id, b]);
+        await db.query("insert into competitor_snapshots (brand_id, competitor_name) values ($1,'n')", [b]);
+      }
+      await addTestMember(db, brandB, "bob@example.com");
+    });
+
+    it.each(tables)("%s: member sees only own brand, stranger none, insert denied", async (t) => {
+      const col = scope(t);
+      const rows = await asUser(alice, () => db.query<Record<string, string>>(`select ${col} as k from ${t}`));
+      expect(rows.length).toBeGreaterThan(0);
+      expect(new Set(rows.map((r) => r.k))).toEqual(new Set([brandA]));
+      expect(await asUser(stranger, () => db.query(`select * from ${t}`))).toEqual([]);
+      await expect(
+        asUser(alice, () => db.query(denied(t)))
+      ).rejects.toThrow(/permission denied/);
+    });
+  });
 });
