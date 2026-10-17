@@ -3,4 +3,8 @@
 **/*.db*
 apps/web/.next
 .git
-.env
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/.DS_Store

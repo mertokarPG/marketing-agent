@@ -16,4 +16,7 @@ COPY packages/core packages/core
 COPY apps/worker apps/worker
 COPY supabase supabase
 WORKDIR /app/apps/worker
+# Run unprivileged; the worker writes scratch files under tmp/ (TMP_ROOT).
+RUN mkdir -p tmp/runs && chown -R node:node /app/apps/worker/tmp
+USER node
 CMD ["npx", "tsx", "src/main.ts"]

@@ -3,18 +3,26 @@ import fs from "node:fs";
 import { buildDeps } from "./runtime/deps.js";
 import { schedulerTick } from "./runtime/scheduler.js";
 import { runLoopTick } from "./runtime/run-loop.js";
+import { drain } from "./runtime/drain.js";
 import { publishTick } from "./runtime/publish-loop.js";
 
 const { env, db, runDeps, publishDeps } = buildDeps(process.env);
 fs.mkdirSync(env.TMP_ROOT, { recursive: true });
 let stopping = false;
+const inFlight = new Set<Promise<unknown>>();
+const DRAIN_TIMEOUT_MS = 25_000;
 
 function every(ms: number, name: string, fn: () => Promise<unknown>) {
   let busy = false;
   const t = setInterval(async () => {
     if (busy || stopping) return;
     busy = true;
-    try { await fn(); } catch (e) { console.error(`[${name}]`, e); } finally { busy = false; }
+    const p = (async () => {
+      try { await fn(); } catch (e) { console.error(`[${name}]`, e); } finally { busy = false; }
+    })();
+    inFlight.add(p);
+    void p.finally(() => inFlight.delete(p));
+    await p;
   }, ms);
   return t;
 }
@@ -33,12 +41,28 @@ const timers = [
 ];
 
 console.log(`[worker] started (concurrency ${env.WORKER_CONCURRENCY})`);
-for (const sig of ["SIGTERM", "SIGINT"] as const) {
-  process.on(sig, async () => {
-    // In-flight runs are not awaited; heartbeat recovery re-queues them on the next start.
-    stopping = true;
-    timers.forEach(clearInterval);
+let shuttingDown = false;
+async function shutdown(code: number) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  stopping = true; // stops new ticks and ends runner loops after the current run
+  timers.forEach(clearInterval);
+  try {
+    const clean = await drain(inFlight, DRAIN_TIMEOUT_MS);
+    if (!clean) console.warn("[worker] drain timed out; remaining runs will be re-queued by heartbeat recovery");
     await db.end();
-    process.exit(0);
-  });
+  } catch (e) {
+    console.error("[worker] shutdown error:", e instanceof Error ? e.message : String(e));
+  } finally {
+    process.exit(code);
+  }
 }
+for (const sig of ["SIGTERM", "SIGINT"] as const) process.on(sig, () => void shutdown(0));
+process.on("unhandledRejection", (e) => {
+  console.error("[worker] unhandledRejection:", e instanceof Error ? e.message : String(e));
+  void shutdown(1);
+});
+process.on("uncaughtException", (e) => {
+  console.error("[worker] uncaughtException:", e.message);
+  void shutdown(1);
+});
