@@ -133,6 +133,22 @@ describe("brandImage", () => {
     fs.unlinkSync(srcPath);
   });
 
+  it("refuses to read a local file outside the brand and render dirs", async () => {
+    await expect(brandImage({
+      imageSource: "/etc/passwd",
+      textOverlay: null,
+      textPosition: "center",
+      isThumbnail: false,
+      pageNumber: 1,
+      totalPages: 1,
+      backgroundColor: null,
+      background: null,
+      branding: baseBranding,
+      brandDir: testBrandDir,
+      instagramHandle: "testbrand",
+    })).rejects.toThrow(/outside the brand and render directories/);
+  });
+
   it("creates image without any text overlay", async () => {
     const result = await brandImage({
       imageSource: null,

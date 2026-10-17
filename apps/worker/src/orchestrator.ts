@@ -497,7 +497,9 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
                 .describe("Grainy gradient mood for text-card backgrounds. ALWAYS use for text-card slides to keep feed visually consistent — avoid flat colors. Rotate moods across a carousel so no two slides share the same gradient. Moods: aurora (dark teal→pink→amber), sunset (warm orange/pink), ocean (cool cyan/indigo), peach (soft warm), noir (dark vibrant), mint (soft green), duotone (bold blue+orange), cobalt (deep blue). 'gradient-random' picks one."),
             }),
             run: async (input) => {
-              const outputPath = await brandImage({
+              let outputPath: string;
+              try {
+                outputPath = await brandImage({
                 imageSource: input.imageUrl,
                 textOverlay: input.textOverlay,
                 textPosition: input.textPosition,
@@ -509,7 +511,10 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
                 branding: brand.branding!,
                 brandDir: brand.brandDir,
                 instagramHandle: brand.instagramHandle ?? "",
-              });
+                });
+              } catch (err) {
+                return `brand_image failed: ${err instanceof Error ? err.message : String(err)}`;
+              }
               return `Branded image saved to: ${outputPath}`;
             },
           }),
@@ -813,7 +818,9 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
               ).describe("Array of slide definitions"),
             }),
             run: async (input) => {
-              const paths = await brandCarousel(
+              let paths: string[];
+              try {
+                paths = await brandCarousel(
                 input.slides.map((s: any) => ({
                   imageSource: s.imageUrl,
                   textOverlay: s.textOverlay,
@@ -825,7 +832,10 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
                 brand.branding!,
                 brand.brandDir,
                 brand.instagramHandle ?? ""
-              );
+                );
+              } catch (err) {
+                return `brand_carousel failed: ${err instanceof Error ? err.message : String(err)}`;
+              }
               return `Branded ${paths.length} slides:\n${paths.map((p, i) => `  Slide ${i + 1}: ${p}`).join("\n")}`;
             },
           }),

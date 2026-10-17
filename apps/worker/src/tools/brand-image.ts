@@ -9,6 +9,7 @@ import {
   pickRandomMood,
   type GradientMood,
 } from "../lib/gradient.js";
+import { loadImageSource } from "./image-source.js";
 
 const CANVAS_WIDTH = 1080;
 const CANVAS_HEIGHT = 1350;
@@ -63,15 +64,6 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
     g: parseInt(h.substring(2, 4), 16),
     b: parseInt(h.substring(4, 6), 16),
   };
-}
-
-async function fetchImage(source: string): Promise<Buffer> {
-  if (source.startsWith("http://") || source.startsWith("https://")) {
-    const res = await fetch(source);
-    if (!res.ok) throw new Error(`Failed to fetch image: ${res.status}`);
-    return Buffer.from(await res.arrayBuffer());
-  }
-  return fs.readFileSync(source);
 }
 
 function buildFontFaceSvg(fontBase64: string | null, fontFamily: string): string {
@@ -264,7 +256,7 @@ export async function brandImage(input: BrandImageInput): Promise<string> {
   let base: sharp.Sharp;
   let bgIsDark = true; // default — photo slides usually benefit from white text on dark scrim
   if (input.imageSource) {
-    const buf = await fetchImage(input.imageSource);
+    const { bytes: buf } = await loadImageSource(input.imageSource, { brandDir: input.brandDir });
     base = sharp(buf).resize(CANVAS_WIDTH, CANVAS_HEIGHT, {
       fit: "cover",
       position: "centre",

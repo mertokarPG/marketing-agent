@@ -1,30 +1,14 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
-import path from "node:path";
 import {
   BUCKETS, countRunPosts, formatLocal, getBrandNotifyEmails, hasCorePostOnLocalDate, insertPost, localParts,
   type BrandConfig, type Db, type MediaItem,
 } from "@carepost/core";
 import type { ToolContext } from "../runtime/types.js";
+import { ImageSourceError, loadImageSource, type ImageSourceDeps, type LoadedImage } from "./image-source.js";
 
 export interface SavePostInput {
   caption: string; hashtags: string[]; images: string[]; promptIds: string[];
   plannedAt: string; kind: "core" | "timely"; rationale: string;
-}
-
-const TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
-
-async function readImage(src: string): Promise<{ bytes: Buffer; ext: string }> {
-  if (/^https?:\/\//.test(src)) {
-    const res = await fetch(src);
-    if (!res.ok) throw new Error(`fetch ${src}: HTTP ${res.status}`);
-    const type = res.headers.get("content-type") ?? "";
-    const ext = Object.keys(TYPES).find((k) => TYPES[k] === type.split(";")[0]) ?? "png";
-    return { bytes: Buffer.from(await res.arrayBuffer()), ext: ext === "jpeg" ? "jpg" : ext };
-  }
-  const raw = path.extname(src).slice(1).toLowerCase();
-  const ext = raw in TYPES ? (raw === "jpeg" ? "jpg" : raw) : "png";
-  return { bytes: await fs.readFile(src), ext };
 }
 
 // The tool runner executes a message's tool calls in parallel, so the duplicate
@@ -39,11 +23,15 @@ function withBrandLock<T>(brandId: string, fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
-export function savePost(db: Db, brand: BrandConfig, ctx: ToolContext, input: SavePostInput): Promise<string> {
-  return withBrandLock(brand.dbId, () => savePostLocked(db, brand, ctx, input));
+export function savePost(
+  db: Db, brand: BrandConfig, ctx: ToolContext, input: SavePostInput, deps?: ImageSourceDeps
+): Promise<string> {
+  return withBrandLock(brand.dbId, () => savePostLocked(db, brand, ctx, input, deps));
 }
 
-async function savePostLocked(db: Db, brand: BrandConfig, ctx: ToolContext, input: SavePostInput): Promise<string> {
+async function savePostLocked(
+  db: Db, brand: BrandConfig, ctx: ToolContext, input: SavePostInput, deps?: ImageSourceDeps
+): Promise<string> {
   const plannedAt = new Date(input.plannedAt);
   if (Number.isNaN(plannedAt.getTime())) return `save_post rejected: plannedAt "${input.plannedAt}" is not an ISO timestamp.`;
   if (plannedAt < ctx.window.start || plannedAt >= ctx.window.end)
@@ -62,14 +50,21 @@ async function savePostLocked(db: Db, brand: BrandConfig, ctx: ToolContext, inpu
       return `save_post rejected: ${ymd} already has a core post. Check get_planned_posts.`;
   }
 
-  const id = randomUUID();
-  let media: MediaItem[];
+  // Load and validate every image before uploading anything (bounded by the fetch timeout).
+  const images: LoadedImage[] = [];
   try {
-    media = [];
-    for (const [n, src] of input.images.entries()) {
-      const { bytes, ext } = await readImage(src);
-      const storage_path = `${brand.dbId}/${id}/${n}.${ext}`;
-      await ctx.storage.upload(BUCKETS.media, storage_path, bytes, TYPES[ext]);
+    for (const src of input.images) images.push(await loadImageSource(src, { brandDir: brand.brandDir, deps }));
+  } catch (err) {
+    if (err instanceof ImageSourceError) return `save_post rejected: ${err.message}.`;
+    return `save_post failed: ${err instanceof Error ? err.message : String(err)}. Nothing was saved; you may retry.`;
+  }
+
+  const id = randomUUID();
+  const media: MediaItem[] = [];
+  try {
+    for (const [n, img] of images.entries()) {
+      const storage_path = `${brand.dbId}/${id}/${n}.${img.ext}`;
+      await ctx.storage.upload(BUCKETS.media, storage_path, img.bytes, img.contentType);
       media.push({ storage_path });
     }
     await insertPost(db, {
@@ -83,12 +78,18 @@ async function savePostLocked(db: Db, brand: BrandConfig, ctx: ToolContext, inpu
   }
 
   const when = formatLocal(plannedAt, brand.timezone);
+  const saved = `Saved ${input.kind} post ${id} for ${when} (${brand.approvalMode === "autopilot" ? "approved" : "pending approval"})`;
   if (input.kind === "timely" && brand.approvalMode === "review") {
-    const to = await getBrandNotifyEmails(db, brand.dbId);
-    if (to.length > 0) {
-      await ctx.notify(`1 timely post needs your OK by ${when}`,
-        `${brand.name}: a timely post is waiting for approval before ${when} (${brand.timezone}).\n\n${input.caption}`, to);
+    // The row is already committed; a notification failure must not read as a failed save.
+    try {
+      const to = await getBrandNotifyEmails(db, brand.dbId);
+      if (to.length > 0) {
+        await ctx.notify(`1 timely post needs your OK by ${when}`,
+          `${brand.name}: a timely post is waiting for approval before ${when} (${brand.timezone}).\n\n${input.caption}`, to);
+      }
+    } catch (err) {
+      return `${saved}; notification failed: ${err instanceof Error ? err.message : String(err)}`;
     }
   }
-  return `Saved ${input.kind} post ${id} for ${when} (${brand.approvalMode === "autopilot" ? "approved" : "pending approval"}).`;
+  return `${saved}.`;
 }

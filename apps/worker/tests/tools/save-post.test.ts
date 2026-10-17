@@ -11,6 +11,9 @@ let db: Db;
 let storage: MemoryStorage;
 let brand: BrandConfig;
 let img: string;
+let brandDir: string;
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]);
 const notify = vi.fn().mockResolvedValue("ok");
 
 const window = { start: new Date("2026-10-18T22:00:00Z"), end: new Date("2026-10-25T23:00:00Z") };
@@ -23,10 +26,12 @@ async function setup(approvalMode: "review" | "autopilot") {
   ({ db } = await createTestDb());
   const dbId = await seedTestBrand(db, { approval_mode: approvalMode });
   await addTestMember(db, dbId, "owner@kuanyin.be");
-  brand = { dbId, slug: "k", name: "K", timezone: "Europe/Brussels", approvalMode } as unknown as BrandConfig;
+  brandDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "save-post-")), "brand");
+  fs.mkdirSync(brandDir);
+  brand = { dbId, slug: "k", name: "K", timezone: "Europe/Brussels", approvalMode, brandDir } as unknown as BrandConfig;
   storage = new MemoryStorage();
-  img = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "img-")), "slide.png");
-  fs.writeFileSync(img, "PNG");
+  img = path.join(brandDir, "slide.png");
+  fs.writeFileSync(img, PNG);
   notify.mockClear();
 }
 const ctx = (o: Partial<ToolContext> = {}): ToolContext => ({ storage, runId: null, kind: "weekly_plan", window, notify, ...o });
@@ -104,5 +109,93 @@ describe("savePost", () => {
     await savePost(db, brand, ctx({ kind: "daily_check", runId }), input({ kind: "timely" }));
     expect((await rows())[0].status).toBe("approved");
     expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("returns the saved message plus the error when the timely notification fails", async () => {
+    notify.mockRejectedValueOnce(new Error("smtp down"));
+    const runId = await enqueueRun(db, brand.dbId, "daily_check", "2026-10-19");
+    const msg = await savePost(db, brand, ctx({ kind: "daily_check", runId }), input({ kind: "timely" }));
+    expect(msg).toMatch(/^Saved timely post .*; notification failed: smtp down$/);
+    expect(await rows()).toHaveLength(1);
+  });
+});
+
+describe("savePost image sources", () => {
+  beforeEach(() => setup("review"));
+  const lookup = vi.fn();
+  const fetchFn = vi.fn();
+  const deps = { lookup, fetch: fetchFn as unknown as typeof fetch };
+  beforeEach(() => { lookup.mockReset(); fetchFn.mockReset(); });
+
+  async function rejected(images: string[], d = deps) {
+    const msg = await savePost(db, brand, ctx(), input({ images }), d);
+    expect(msg).toMatch(/^save_post rejected: /);
+    expect(await rows()).toHaveLength(0);
+    expect(storage.files.size).toBe(0);
+    return msg;
+  }
+
+  it("saves a product photo by its listed relative path, typed from its bytes", async () => {
+    fs.mkdirSync(path.join(brandDir, "assets/products"), { recursive: true });
+    fs.writeFileSync(path.join(brandDir, "assets/products/serum.jpg"), JPEG);
+    await savePost(db, brand, ctx(), input({ images: ["assets/products/serum.jpg"] }));
+    const [p] = await rows();
+    expect(p.media).toEqual([{ storage_path: `${brand.dbId}/${p.id}/0.jpg` }]);
+    expect(storage.files.get(`post-media/${brand.dbId}/${p.id}/0.jpg`)?.contentType).toBe("image/jpeg");
+  });
+
+  it("accepts a PNG rendered under the worker tmp dir", async () => {
+    const dir = fs.mkdtempSync(path.join(path.resolve("tmp"), "save-post-test-"));
+    try {
+      const file = path.join(dir, "cover.png");
+      fs.writeFileSync(file, PNG);
+      expect(await savePost(db, brand, ctx(), input({ images: [file] }))).toMatch(/^Saved core post/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects /etc/passwd", async () => {
+    expect(await rejected(["/etc/passwd"])).toMatch(/outside the brand and render directories/);
+  });
+
+  it("rejects ../ traversal out of brandDir", async () => {
+    fs.writeFileSync(path.join(brandDir, "..", "outside.png"), PNG);
+    expect(await rejected(["../outside.png"])).toMatch(/outside/);
+  });
+
+  it("rejects a symlink inside brandDir pointing outside", async () => {
+    const outside = path.join(brandDir, "..", "secret.png");
+    fs.writeFileSync(outside, PNG);
+    fs.symlinkSync(outside, path.join(brandDir, "link.png"));
+    expect(await rejected(["link.png"])).toMatch(/outside/);
+  });
+
+  it("rejects a non-image file inside brandDir", async () => {
+    fs.writeFileSync(path.join(brandDir, "notes.png"), "just text");
+    expect(await rejected(["notes.png"])).toMatch(/not a PNG, JPEG or WebP/);
+  });
+
+  it("rejects plain http and loopback/metadata IPs without fetching", async () => {
+    await rejected(["http://127.0.0.1/x.png"]);
+    await rejected(["http://169.254.169.254/"]);
+    expect(await rejected(["https://169.254.169.254/latest/meta-data"])).toMatch(/non-public address/);
+    expect(await rejected(["https://127.0.0.1/x.png"])).toMatch(/non-public address/);
+    expect(await rejected(["https://[::1]/x.png"])).toMatch(/non-public address/);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("rejects an https host that resolves to a private address", async () => {
+    lookup.mockResolvedValue([{ address: "10.0.0.5", family: 4 }]);
+    expect(await rejected(["https://internal.example.com/x.png"])).toMatch(/non-public address/);
+    expect(lookup).toHaveBeenCalledWith("internal.example.com");
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("saves a public https image", async () => {
+    lookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }]);
+    fetchFn.mockResolvedValue(new Response(PNG, { status: 200 }));
+    expect(await savePost(db, brand, ctx(), input({ images: ["https://cdn.example.com/a"] }), deps)).toMatch(/^Saved core post/);
+    expect(fetchFn.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
   });
 });
