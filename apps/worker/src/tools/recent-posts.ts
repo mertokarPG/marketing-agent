@@ -1,23 +1,11 @@
-import Database from "better-sqlite3";
-import { getRecentPosts } from "../db/queries.js";
+import { getRecentPosts, type Db } from "@carepost/core";
 
-export function getRecentPostsTool(
-  db: Database.Database,
-  brandId: string,
-  limit: number
-): string {
-  const posts = getRecentPosts(db, brandId, limit);
-
-  if (posts.length === 0) {
-    return `No recent posts found for brand "${brandId}".`;
-  }
-
+export async function getRecentPostsTool(db: Db, brandId: string, limit: number): Promise<string> {
+  const posts = await getRecentPosts(db, brandId, limit);
+  if (posts.length === 0) return `No recent posts found for this brand.`;
   const formatted = posts
-    .map(
-      (p) =>
-        `[${p.created_at}] Theme: ${p.content_theme ?? "none"}\nCaption: ${p.caption}\nImage: ${p.image_url ?? "none"}\nHashtags: ${p.hashtags.join(", ")}`
-    )
+    .map((p) =>
+      `[${(p.published_at ?? p.planned_at).toISOString()}] ${p.kind} · ${p.status}\nCaption: ${p.caption}\nMedia: ${p.media.length} image(s)\nHashtags: ${p.hashtags.join(", ")}`)
     .join("\n\n");
-
-  return `Recent ${posts.length} posts for ${brandId}:\n\n${formatted}`;
+  return `Recent ${posts.length} posts:\n\n${formatted}`;
 }

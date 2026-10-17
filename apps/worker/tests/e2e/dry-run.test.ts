@@ -1,6 +1,6 @@
 // tests/e2e/dry-run.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createDatabase } from "../../src/db/schema.js";
+import { createTestDb, seedTestBrand } from "@carepost/core/testing";
 import { buildTools } from "../../src/orchestrator.js";
 import type { BrandConfig } from "../../src/config/load-brand.js";
 
@@ -23,8 +23,9 @@ describe("dry run", () => {
     vi.stubEnv("POSTIZ_API_KEY", "");
     vi.stubEnv("SMTP_HOST", "");
 
-    const db = createDatabase(":memory:");
-    const tools = buildTools(mockBrand, db);
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
+    const tools = buildTools({ ...mockBrand, dbId }, db);
 
     // Each tool should have name and run function
     for (const tool of tools) {
@@ -32,7 +33,7 @@ describe("dry run", () => {
       expect(typeof tool.run).toBe("function");
     }
 
-    // Test the SQLite tools directly (no external deps)
+    // Test the DB-backed tools directly (no external deps)
     // tools.find() returns the union tool type, whose run() args collapse to
     // never — cast to any for per-tool invocation in the test.
     const recentPostsTool = tools.find((t) => t.name === "get_recent_posts") as any;
@@ -54,7 +55,5 @@ describe("dry run", () => {
     });
     expect(notifyResult).toContain("logged to console");
     consoleSpy.mockRestore();
-
-    db.close();
   });
 });

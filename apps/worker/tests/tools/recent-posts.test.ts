@@ -1,37 +1,35 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDatabase } from "../../src/db/schema.js";
-import { insertPost } from "../../src/db/queries.js";
+import { insertPost, type Db } from "@carepost/core";
+import { createTestDb, seedTestBrand } from "@carepost/core/testing";
 import { getRecentPostsTool } from "../../src/tools/recent-posts.js";
-import Database from "better-sqlite3";
 
-let db: Database.Database;
-
-beforeEach(() => {
-  db = createDatabase(":memory:");
-  insertPost(db, {
-    brand_id: "carephoto",
-    caption: "Amazing AI results!",
-    hashtags: ["#ai", "#photo"],
-    content_theme: "before-after",
-  });
-  insertPost(db, {
-    brand_id: "carephoto",
-    caption: "Tips for better headshots",
-    hashtags: ["#headshots"],
-    content_theme: "tips",
-  });
+let db: Db;
+let brand: string;
+beforeEach(async () => {
+  ({ db } = await createTestDb());
+  brand = await seedTestBrand(db);
+  for (const caption of ["Amazing AI results!", "Tips for better headshots"]) {
+    await insertPost(db, { brand_id: brand, kind: "core", status: "published", planned_at: new Date(), caption,
+      hashtags: ["#ai"], media: [{ storage_path: "x/0.png" }], prompt_ids: [], rationale: "" });
+  }
 });
 
 describe("getRecentPostsTool", () => {
-  it("returns formatted recent posts", () => {
-    const result = getRecentPostsTool(db, "carephoto", 5);
+  it("returns formatted recent posts", async () => {
+    const result = await getRecentPostsTool(db, brand, 5);
     expect(result).toContain("Amazing AI results!");
     expect(result).toContain("Tips for better headshots");
+    expect(result).toContain("core · published");
   });
-
-  it("respects limit", () => {
-    const result = getRecentPostsTool(db, "carephoto", 1);
-    expect(result).toContain("Tips for better headshots");
+  it("handles no posts", async () => {
+    const other = await seedTestBrand(db);
+    expect(await getRecentPostsTool(db, other, 5)).toContain("No recent posts");
+  });
+  it("respects limit", async () => {
+    await insertPost(db, { brand_id: brand, kind: "core", status: "published", planned_at: new Date(Date.now() + 60_000),
+      caption: "Newest post", hashtags: [], media: [], prompt_ids: [], rationale: "" });
+    const result = await getRecentPostsTool(db, brand, 1);
+    expect(result).toContain("Newest post");
     expect(result).not.toContain("Amazing AI results!");
   });
 });

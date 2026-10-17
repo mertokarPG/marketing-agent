@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildTools } from "../src/orchestrator.js";
-import { createDatabase } from "../src/db/schema.js";
+import { createTestDb, seedTestBrand } from "@carepost/core/testing";
 import type { BrandConfig } from "../src/config/load-brand.js";
 
 const mockBrand: BrandConfig = {
@@ -17,27 +17,28 @@ const mockBrand: BrandConfig = {
 };
 
 describe("buildTools", () => {
-  it("does not register optional tools without flags", () => {
-    const db = createDatabase(":memory:");
-    const tools = buildTools(mockBrand, db);
+  it("does not register optional tools without flags", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
+    const tools = buildTools({ ...mockBrand, dbId }, db);
     const names = tools.map((t) => t.name);
     expect(names).not.toContain("browse_prompt_bank");
     expect(names).not.toContain("brand_image");
     expect(names).not.toContain("brand_carousel");
     expect(names).not.toContain("generate_image");
-    db.close();
   });
 
-  it("registers browse_prompt_bank when promptBankPath is set", () => {
-    const db = createDatabase(":memory:");
+  it("registers browse_prompt_bank when promptBankPath is set", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
     const brandWithBank = { ...mockBrand, promptBankPath: "/tmp/prompts.json" };
-    const tools = buildTools(brandWithBank, db);
+    const tools = buildTools({ ...brandWithBank, dbId }, db);
     expect(tools.map((t) => t.name)).toContain("browse_prompt_bank");
-    db.close();
   });
 
-  it("registers generate_image when imageGeneration.enabled", () => {
-    const db = createDatabase(":memory:");
+  it("registers generate_image when imageGeneration.enabled", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
     const brandWithGen: BrandConfig = {
       ...mockBrand,
       imageGeneration: {
@@ -47,13 +48,13 @@ describe("buildTools", () => {
         defaultAspectRatio: "4:5",
       },
     };
-    const tools = buildTools(brandWithGen, db);
+    const tools = buildTools({ ...brandWithGen, dbId }, db);
     expect(tools.map((t) => t.name)).toContain("generate_image");
-    db.close();
   });
 
-  it("does not register generate_image when imageGeneration.enabled=false", () => {
-    const db = createDatabase(":memory:");
+  it("does not register generate_image when imageGeneration.enabled=false", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
     const brandDisabled: BrandConfig = {
       ...mockBrand,
       imageGeneration: {
@@ -63,13 +64,13 @@ describe("buildTools", () => {
         defaultAspectRatio: "4:5",
       },
     };
-    const tools = buildTools(brandDisabled, db);
+    const tools = buildTools({ ...brandDisabled, dbId }, db);
     expect(tools.map((t) => t.name)).not.toContain("generate_image");
-    db.close();
   });
 
-  it("returns 8 tools with branding enabled", () => {
-    const db = createDatabase(":memory:");
+  it("returns 8 tools with branding enabled", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
     const brandWithBranding: BrandConfig = {
       ...mockBrand,
       instagramHandle: "testbrand",
@@ -82,18 +83,18 @@ describe("buildTools", () => {
         showSwipeArrow: true,
       },
     };
-    const tools = buildTools(brandWithBranding, db);
+    const tools = buildTools({ ...brandWithBranding, dbId }, db);
     const names = tools.map((t) => t.name);
     expect(names).toContain("brand_image");
     expect(names).toContain("brand_carousel");
     expect(names).toContain("carousel_cover");
     expect(names).toContain("body_slide");
     expect(names).toContain("photo_overlay");
-    db.close();
   });
 
-  it("does not register branding tools when branding disabled", () => {
-    const db = createDatabase(":memory:");
+  it("does not register branding tools when branding disabled", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
     const brandDisabled: BrandConfig = {
       ...mockBrand,
       branding: {
@@ -105,9 +106,8 @@ describe("buildTools", () => {
         showSwipeArrow: true,
       },
     };
-    const tools = buildTools(brandDisabled, db);
+    const tools = buildTools({ ...brandDisabled, dbId }, db);
     expect(tools.map((t) => t.name)).not.toContain("brand_image");
     expect(tools.map((t) => t.name)).not.toContain("brand_carousel");
-    db.close();
   });
 });

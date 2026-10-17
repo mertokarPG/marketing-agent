@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts",
+    "start": "tsx src/main.ts",
     "agent": "tsx src/cli.ts",
     "seed-brand": "tsx scripts/seed-brand.ts",
     "migrate-sqlite": "tsx scripts/migrate-sqlite.ts",
@@ -16,9 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
     "@mendable/firecrawl-js": "^1.19.0",
-    "better-sqlite3": "^11.7.0",
     "dotenv": "^17.4.1",
-    "node-cron": "^3.0.3",
     "nodemailer": "^6.9.16",
     "puppeteer": "^24.41.0",
     "rss-parser": "^3.13.0",
@@ -30,11 +28,11 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
-    "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.17",
     "@types/sharp": "^0.31.1",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",
-    "@electric-sql/pglite": "0.2.17"
+    "@electric-sql/pglite": "0.2.17",
+    "better-sqlite3": "^11.7.0"
   }
 }

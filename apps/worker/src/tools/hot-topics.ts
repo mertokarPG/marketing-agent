@@ -1,9 +1,9 @@
-import type Database from "better-sqlite3";
 import {
   getTrendsSince,
   getSourceBaselines,
+  type Db,
   type TrendRow,
-} from "../db/queries.js";
+} from "@carepost/core";
 
 export interface GetHotTopicsInput {
   lookback_hours?: number;
@@ -71,10 +71,11 @@ function formatDigest(ranked: RankedTrend[], limit: number): string {
   return sections.join("\n");
 }
 
-export function getHotTopics(
-  db: Database.Database,
+export async function getHotTopics(
+  db: Db,
+  brandId: string,
   input: GetHotTopicsInput = {}
-): string {
+): Promise<string> {
   const {
     lookback_hours = 48,
     categories = null,
@@ -82,12 +83,12 @@ export function getHotTopics(
     limit = 20,
   } = input;
 
-  const trends = getTrendsSince(db, {
+  const trends = await getTrendsSince(db, brandId, {
     lookbackHours: lookback_hours,
     categories: categories ?? undefined,
     minScore: min_score ?? undefined,
   });
-  const baselines = getSourceBaselines(db);
+  const baselines = await getSourceBaselines(db, brandId);
   const ranked = rank(trends, baselines);
 
   const header =

@@ -1,8 +1,7 @@
 import fs from "fs";
 import Parser from "rss-parser";
 import FirecrawlApp from "@mendable/firecrawl-js";
-import type Database from "better-sqlite3";
-import { upsertTrend } from "../db/queries.js";
+import { upsertTrend, type Db } from "@carepost/core";
 
 export interface HotTopicSource {
   id: string;
@@ -39,12 +38,12 @@ const rssParser = new Parser({
 });
 
 // ── RSS ─────────────────────────────────────────────────────────────────────
-async function fetchRss(source: HotTopicSource, db: Database.Database): Promise<number> {
+async function fetchRss(source: HotTopicSource, db: Db, brandId: string): Promise<number> {
   const feed = await rssParser.parseURL(source.url);
   let inserted = 0;
   for (const item of feed.items ?? []) {
     if (!item.link || !item.title) continue;
-    upsertTrend(db, {
+    await upsertTrend(db, brandId, {
       source_id: source.id,
       category: source.category,
       title: String(item.title).trim(),
@@ -76,7 +75,8 @@ interface HNHit {
 
 async function fetchHackerNews(
   source: HotTopicSource,
-  db: Database.Database
+  db: Db,
+  brandId: string
 ): Promise<number> {
   const res = await fetch(source.url, {
     headers: { "User-Agent": "carephoto-hot-topics/1.0" },
@@ -88,7 +88,7 @@ async function fetchHackerNews(
     if (!hit.title) continue;
     // Prefer external URL; fall back to HN discussion page.
     const url = hit.url ?? `https://news.ycombinator.com/item?id=${hit.objectID}`;
-    upsertTrend(db, {
+    await upsertTrend(db, brandId, {
       source_id: source.id,
       category: source.category,
       title: hit.title.trim(),
@@ -123,7 +123,8 @@ interface RedditChild {
 
 async function fetchReddit(
   source: HotTopicSource,
-  db: Database.Database
+  db: Db,
+  brandId: string
 ): Promise<number> {
   // Reddit blocks bare fetches; a real-looking UA avoids 429/403.
   const res = await fetch(source.url, {
@@ -141,7 +142,7 @@ async function fetchReddit(
     const d = child.data;
     if (d.stickied || d.over_18) continue;
     const permalink = `https://www.reddit.com${d.permalink}`;
-    upsertTrend(db, {
+    await upsertTrend(db, brandId, {
       source_id: source.id,
       category: source.category,
       title: d.title.trim(),
@@ -164,7 +165,8 @@ async function fetchReddit(
 // ── Firecrawl search (fallback for sources without RSS) ────────────────────
 async function fetchFirecrawlSearch(
   source: HotTopicSource,
-  db: Database.Database
+  db: Db,
+  brandId: string
 ): Promise<number> {
   if (!process.env.FIRECRAWL_API_KEY) {
     throw new Error("FIRECRAWL_API_KEY not set — required for firecrawl-search sources");
@@ -179,7 +181,7 @@ async function fetchFirecrawlSearch(
     description?: string;
   }>) {
     if (!hit.url || !hit.title) continue;
-    upsertTrend(db, {
+    await upsertTrend(db, brandId, {
       source_id: source.id,
       category: source.category,
       title: hit.title.trim(),
@@ -195,10 +197,10 @@ async function fetchFirecrawlSearch(
 
 // ── Orchestrator ────────────────────────────────────────────────────────────
 export async function scrapeAllSources(
-  db: Database.Database,
-  configPath: string
+  db: Db,
+  brandId: string,
+  sources: HotTopicSource[]
 ): Promise<ScrapeStat[]> {
-  const cfg = loadSourcesConfig(configPath);
   const stats: ScrapeStat[] = [];
 
   // Run sources in parallel within a small concurrency cap so one slow feed
@@ -206,18 +208,18 @@ export async function scrapeAllSources(
   const POOL = 4;
   let cursor = 0;
   async function worker() {
-    while (cursor < cfg.sources.length) {
-      const source = cfg.sources[cursor++];
+    while (cursor < sources.length) {
+      const source = sources[cursor++];
       const t0 = Date.now();
       try {
         const inserted =
           source.type === "hackernews"
-            ? await fetchHackerNews(source, db)
+            ? await fetchHackerNews(source, db, brandId)
             : source.type === "reddit"
-              ? await fetchReddit(source, db)
+              ? await fetchReddit(source, db, brandId)
               : source.type === "firecrawl-search"
-                ? await fetchFirecrawlSearch(source, db)
-                : await fetchRss(source, db);
+                ? await fetchFirecrawlSearch(source, db, brandId)
+                : await fetchRss(source, db, brandId);
         stats.push({
           source_id: source.id,
           name: source.name,

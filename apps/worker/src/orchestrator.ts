@@ -12,7 +12,6 @@ const betaZodTool = _betaZodTool as unknown as (options: {
   run: (args: any, context?: any) => Promise<string> | string;
 }) => any;
 import path from "path";
-import Database from "better-sqlite3";
 import type { BrandConfig } from "./config/load-brand.js";
 import { loadDesignSystem, type DesignSystem, isHtmlTokens, isReactJsx, type ReactJsxManifest } from "./config/load-design-system.js";
 import { buildSystemPrompt } from "./config/system-prompt.js";
@@ -23,7 +22,6 @@ import { getTrendingTopics } from "./tools/trending-topics.js";
 import { getBrandLogo } from "./tools/brand-logo.js";
 import { getRecentPostsTool } from "./tools/recent-posts.js";
 import { getPostPerformanceTool } from "./tools/post-performance.js";
-import { schedulePost } from "./tools/schedule-post.js";
 import { sendNotification } from "./tools/notify.js";
 import { browsePromptBank } from "./tools/prompt-bank.js";
 import { brandImage, brandCarousel } from "./tools/brand-image.js";
@@ -32,14 +30,7 @@ import { composeImagePrompt } from "./tools/compose-image-prompt.js";
 import { renderCarouselCover } from "./tools/carousel-cover.js";
 import { renderPhotoOverlay } from "./tools/photo-overlay.js";
 import { renderReactSlide, type SlideKind } from "./tools/react-slide.js";
-import { ingestAnalytics } from "./tools/ingest-analytics.js";
-import {
-  insertPost,
-  insertCompetitorSnapshot,
-  insertContentCalendarEntry,
-  updateContentCalendarStatus,
-  getUsedPromptIds,
-} from "./db/queries.js";
+import { insertCompetitorSnapshot, getUsedPromptIds, type Db } from "@carepost/core";
 
 function requireNonEmpty<T extends string>(arr: T[], label: string): [T, ...T[]] {
   if (arr.length === 0) throw new Error(`${label} is empty`);
@@ -169,7 +160,7 @@ function buildReactJsxTools(
   return [coverTool, bodyTool];
 }
 
-export function buildTools(brand: BrandConfig, db: Database.Database) {
+export function buildTools(brand: BrandConfig, db: Db) {
   const designSystemId = brand.designSystem ?? "editorial-paper";
   const designSystemsDir = path.resolve("design-systems");
   const designSystem: DesignSystem | null = brand.branding?.enabled
@@ -187,8 +178,8 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
       }),
       run: async (input) => {
         const result = await scrapeCompetitor(input.name, input.url);
-        insertCompetitorSnapshot(db, {
-          brand_id: brand.id,
+        await insertCompetitorSnapshot(db, {
+          brand_id: brand.dbId,
           competitor_name: input.name,
           content_summary: result,
           engagement_notes: "",
@@ -260,7 +251,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
           .describe("Max items to return. Default 20."),
       }),
       run: async (input) => {
-        return getHotTopics(db, {
+        return getHotTopics(db, brand.dbId, {
           lookback_hours: input.lookback_hours,
           categories: input.categories ?? undefined,
           min_score: input.min_score ?? undefined,
@@ -313,7 +304,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
           .describe("Number of recent posts to retrieve"),
       }),
       run: async (input) => {
-        return getRecentPostsTool(db, brand.id, input.limit);
+        return getRecentPostsTool(db, brand.dbId, input.limit);
       },
     }),
 
@@ -328,59 +319,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
           .describe("Number of posts to get performance for"),
       }),
       run: async (input) => {
-        return getPostPerformanceTool(db, brand.id, input.limit);
-      },
-    }),
-
-    betaZodTool({
-      name: "schedule_post",
-      description:
-        "Schedule a post to Instagram via Postiz. Always record the content in the content calendar first. MUST pass promptIds of any prompt-bank images used so they are tracked as used and not shown in future browse_prompt_bank results.",
-      inputSchema: z.object({
-        caption: z.string().describe("Post caption"),
-        hashtags: z.array(z.string()).describe("Hashtags for the post"),
-        images: z.array(z.string()).describe("Array of image URLs or local paths. Single item = regular post, multiple = carousel."),
-        promptIds: z
-          .array(z.string())
-          .describe(
-            "REQUIRED: prompt bank IDs (e.g. 'rooftop-dusk-portrait') for every slide that uses a prompt-bank image. Empty array if no prompt-bank images used (e.g. pure text-card/gradient posts). Critical for dedup — if you forget, the image can be reused later."
-          ),
-        scheduledTime: z
-          .string()
-          .optional()
-          .describe(
-            "ISO timestamp for when to post (optional, posts immediately if omitted)"
-          ),
-      }),
-      run: async (input) => {
-        const calendarId = insertContentCalendarEntry(db, {
-          brand_id: brand.id,
-          planned_date: new Date().toISOString().split("T")[0],
-          theme: "scheduled",
-          caption_draft: input.caption,
-          hashtags: input.hashtags,
-          reasoning: "Scheduled via agent",
-        });
-
-        const result = await schedulePost(input);
-
-        if (result.ok) {
-          insertPost(db, {
-            brand_id: brand.id,
-            caption: input.caption,
-            hashtags: input.hashtags,
-            image_url: input.images[0],
-            content_theme: "scheduled",
-            posted_at: input.scheduledTime ?? new Date().toISOString(),
-            external_post_id: result.postizId,
-            source_images: input.promptIds,
-          });
-          updateContentCalendarStatus(db, calendarId, "posted");
-        } else {
-          updateContentCalendarStatus(db, calendarId, "planned");
-        }
-
-        return result.message;
+        return getPostPerformanceTool(db, brand.dbId, input.limit);
       },
     }),
 
@@ -487,7 +426,7 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
                 ),
             }),
             run: async (input) => {
-              const usedIds = getUsedPromptIds(db, brand.id);
+              const usedIds = await getUsedPromptIds(db, brand.dbId);
               return browsePromptBank(
                 brand.promptBankPath!,
                 brand.domain,
@@ -907,23 +846,12 @@ export function buildTools(brand: BrandConfig, db: Database.Database) {
 
 export async function runAgent(
   brand: BrandConfig,
-  db: Database.Database,
+  db: Db,
   opts: { userBrief?: string; maxIterations?: number } = {}
 ): Promise<void> {
   const client = new Anthropic();
   const tools = buildTools(brand, db);
   const systemPrompt = buildSystemPrompt(brand);
-
-  // Pull fresh analytics from Postiz before the agent reads get_post_performance,
-  // so today's decisions are informed by yesterday's numbers. Fails soft — if
-  // Postiz is unreachable the agent still runs with whatever's already in the DB.
-  try {
-    await ingestAnalytics(brand, db);
-  } catch (err) {
-    console.warn(
-      `[Agent] analytics ingestion failed: ${err instanceof Error ? err.message : err}`
-    );
-  }
 
   console.log(`[Agent] Starting daily run for ${brand.name}...`);
 

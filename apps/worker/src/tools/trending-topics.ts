@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type Database from "better-sqlite3";
-import { getTrendsSince, type TrendRow } from "../db/queries.js";
+import { getTrendsSince, type Db, type TrendRow } from "@carepost/core";
 import type { BrandConfig } from "../config/load-brand.js";
 
 export interface GetTrendingTopicsInput {
@@ -185,13 +184,13 @@ function formatDigest(
 }
 
 export async function getTrendingTopics(
-  db: Database.Database,
+  db: Db,
   brand: BrandConfig,
   input: GetTrendingTopicsInput = {}
 ): Promise<string> {
   const { lookback_hours = 48, max_topics = 10 } = input;
 
-  const items = getTrendsSince(db, { lookbackHours: lookback_hours });
+  const items = await getTrendsSince(db, brand.dbId, { lookbackHours: lookback_hours });
   if (items.length === 0) {
     return `Trending topics — lookback ${lookback_hours}h, 0 items.\n\nThe scraper has not populated the trends table yet.`;
   }

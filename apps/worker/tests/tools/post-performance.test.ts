@@ -1,22 +1,29 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDatabase } from "../../src/db/schema.js";
-import { insertPost, insertAnalytics } from "../../src/db/queries.js";
+import { insertPost, insertAnalytics, type Db } from "@carepost/core";
+import { createTestDb, seedTestBrand } from "@carepost/core/testing";
 import { getPostPerformanceTool } from "../../src/tools/post-performance.js";
-import Database from "better-sqlite3";
 
-let db: Database.Database;
+let db: Db;
+let brand: string;
 
-beforeEach(() => {
-  db = createDatabase(":memory:");
-  const postId = insertPost(db, {
-    brand_id: "carephoto",
+beforeEach(async () => {
+  ({ db } = await createTestDb());
+  brand = await seedTestBrand(db);
+  const postId = await insertPost(db, {
+    brand_id: brand,
+    kind: "core",
+    status: "published",
+    planned_at: new Date(),
+    published_at: new Date(),
     caption: "Test post",
     hashtags: ["#test"],
-    content_theme: "before-after",
+    media: [{ storage_path: "x/0.png" }],
+    prompt_ids: [],
+    rationale: "",
   });
-  insertAnalytics(db, {
+  await insertAnalytics(db, {
     post_id: postId,
-    brand_id: "carephoto",
+    brand_id: brand,
     likes: 100,
     comments: 20,
     shares: 10,
@@ -30,15 +37,16 @@ beforeEach(() => {
 });
 
 describe("getPostPerformanceTool", () => {
-  it("returns formatted performance data", () => {
-    const result = getPostPerformanceTool(db, "carephoto", 5);
+  it("returns formatted performance data", async () => {
+    const result = await getPostPerformanceTool(db, brand, 5);
     expect(result).toContain("100 likes");
     expect(result).toContain("5000 reach");
     expect(result).toContain("Test post");
   });
 
-  it("returns message when no data", () => {
-    const result = getPostPerformanceTool(db, "nonexistent", 5);
+  it("returns message when no data", async () => {
+    const other = await seedTestBrand(db);
+    const result = await getPostPerformanceTool(db, other, 5);
     expect(result).toContain("No performance data");
   });
 });

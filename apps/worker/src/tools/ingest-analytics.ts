@@ -1,11 +1,11 @@
-import Database from "better-sqlite3";
 import type { BrandConfig } from "../config/load-brand.js";
 import {
   insertAnalytics,
   getPostsWithExternalId,
   getPostsNeedingExternalId,
   setExternalPostId,
-} from "../db/queries.js";
+  type Db,
+} from "@carepost/core";
 
 interface PostizPost {
   id: string;
@@ -46,9 +46,9 @@ function latestMetric(metrics: AnalyticsMetric[], label: string): number {
 // by caption-prefix + a ±1-day window around posted_at.
 async function backfillExternalIds(
   brand: BrandConfig,
-  db: Database.Database
+  db: Db
 ): Promise<number> {
-  const missing = getPostsNeedingExternalId(db, brand.id);
+  const missing = await getPostsNeedingExternalId(db, brand.dbId);
   if (missing.length === 0) return 0;
 
   const earliest = missing
@@ -76,7 +76,7 @@ async function backfillExternalIds(
       (p) => p.content.includes(dbCaptionHead) && p.publishDate.startsWith(dbPost.posted_at!.slice(0, 10))
     );
     if (candidate) {
-      setExternalPostId(db, dbPost.id, candidate.id);
+      await setExternalPostId(db, dbPost.id, candidate.id);
       matched++;
     }
   }
@@ -92,7 +92,7 @@ export interface IngestResult {
 
 export async function ingestAnalytics(
   brand: BrandConfig,
-  db: Database.Database
+  db: Db
 ): Promise<IngestResult> {
   if (!process.env.POSTIZ_API_KEY) {
     return { backfilled: 0, ingested: 0, skipped: 0, errors: 0 };
@@ -106,7 +106,7 @@ export async function ingestAnalytics(
     console.warn(`[ingest-analytics] backfill failed: ${err instanceof Error ? err.message : err}`);
   }
 
-  const posts = getPostsWithExternalId(db, brand.id);
+  const posts = await getPostsWithExternalId(db, brand.dbId);
   for (const post of posts) {
     try {
       const res = await postizFetch(`/analytics/post/${post.external_post_id}`);
@@ -128,9 +128,9 @@ export async function ingestAnalytics(
         continue;
       }
 
-      insertAnalytics(db, {
+      await insertAnalytics(db, {
         post_id: post.id,
-        brand_id: brand.id,
+        brand_id: brand.dbId,
         likes: latestMetric(metrics, "Likes"),
         comments: latestMetric(metrics, "Comments"),
         shares: latestMetric(metrics, "Shares"),

@@ -1,5 +1,4 @@
-import Database from "better-sqlite3";
-import { getPostPerformance } from "../db/queries.js";
+import { getPostPerformance, type Db } from "@carepost/core";
 
 // Rolling-window size for the baseline stats. 20 posts covers ~3 weeks for a
 // daily-poster without being so large that a multi-month trend dominates.
@@ -30,13 +29,13 @@ function multiple(value: number, base: number): string {
   return `${(value / base).toFixed(1)}×`;
 }
 
-export function getPostPerformanceTool(
-  db: Database.Database,
+export async function getPostPerformanceTool(
+  db: Db,
   brandId: string,
   limit: number
-): string {
+): Promise<string> {
   // Pull a larger pool to compute the baseline even if the caller asked for a few.
-  const pool = getPostPerformance(db, brandId, Math.max(limit, BASELINE_WINDOW));
+  const pool = await getPostPerformance(db, brandId, Math.max(limit, BASELINE_WINDOW));
   if (pool.length === 0) {
     return `No performance data found for brand "${brandId}".`;
   }

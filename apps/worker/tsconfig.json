@@ -11,6 +11,6 @@
     "resolveJsonModule": true,
     "declaration": true
   },
-  "include": ["src/**/*", "tests/**/*", "brands/**/*"],
+  "include": ["src/**/*", "tests/**/*", "scripts/lib/**/*", "scripts/legacy/**/*", "scripts/seed-brand.ts", "scripts/migrate-sqlite.ts"],
   "exclude": ["node_modules", "dist"]
 }
