@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -25,4 +26,24 @@ export async function createTestDb(opts: { migrations?: boolean } = {}): Promise
     for (const f of files) await pg.exec(readFileSync(MIGRATIONS_DIR + f, "utf8"));
   }
   return { db: pgliteDb(pg), pg };
+}
+
+export async function seedTestBrand(
+  db: Db,
+  o: Partial<{ slug: string; timezone: string; approval_mode: string; status: string; publisher: string | null }> = {}
+): Promise<string> {
+  const [row] = await db.query<{ id: string }>(
+    `insert into brands (slug, name, timezone, approval_mode, status, publisher)
+     values ($1, $2, $3, $4, $5, $6) returning id`,
+    [o.slug ?? `brand-${randomUUID().slice(0, 8)}`, "Test Brand", o.timezone ?? "Europe/Brussels",
+     o.approval_mode ?? "review", o.status ?? "active", o.publisher ?? null]
+  );
+  return row.id;
+}
+
+export async function addTestMember(db: Db, brandId: string, email: string, role = "owner"): Promise<string> {
+  const id = randomUUID();
+  await db.query("insert into auth.users (id, email) values ($1, $2)", [id, email]);
+  await db.query("insert into brand_members (brand_id, user_id, role) values ($1, $2, $3)", [brandId, id, role]);
+  return id;
 }
