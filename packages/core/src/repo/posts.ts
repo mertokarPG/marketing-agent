@@ -109,6 +109,9 @@ export async function markPublished(db: Db, id: string, externalId: string): Pro
     [id, externalId]);
 }
 
-export async function markFailed(db: Db, id: string, error: string): Promise<void> {
-  await db.query("update posts set status = 'failed', publish_error = $2 where id = $1", [id, error]);
+/** `externalId` is set when the post IS live but our status update failed, so it is never lost or reposted. */
+export async function markFailed(db: Db, id: string, error: string, externalId?: string): Promise<void> {
+  await db.query(
+    "update posts set status = 'failed', publish_error = $2, external_post_id = coalesce($3, external_post_id) where id = $1",
+    [id, error, externalId ?? null]);
 }

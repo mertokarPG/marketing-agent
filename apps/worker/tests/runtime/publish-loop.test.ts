@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryStorage, insertPost, approvePost, type Db } from "@carepost/core";
+const hooks = vi.hoisted(() => ({ markPublished: null as any, markFailed: null as any }));
+vi.mock("@carepost/core", async (orig) => {
+  const m: any = await orig();
+  return { ...m, markPublished: (...a: any[]) => (hooks.markPublished ?? m.markPublished)(...a), markFailed: (...a: any[]) => (hooks.markFailed ?? m.markFailed)(...a) };
+});
 import { createTestDb, seedTestBrand } from "@carepost/core/testing";
 import { publishTick } from "../../src/runtime/publish-loop.js";
 
@@ -21,6 +26,7 @@ beforeEach(async () => {
   brand = await seedTestBrand(db, { publisher: "postiz" });
   storage = new MemoryStorage();
   publish.mockReset();
+  hooks.markPublished = null; hooks.markFailed = null;
   notify.mockReset();
   notify.mockResolvedValue("ok");
 });
@@ -80,5 +86,41 @@ describe("publishTick", () => {
     expect(publish).not.toHaveBeenCalled();
     expect((await status(future)).status).toBe("approved");
     expect((await status(waiting)).status).toBe("approved");
+  });
+
+  it("post live but markPublished fails twice: failed + external id kept + do-not-repost email", async () => {
+    const real: any = await vi.importActual("@carepost/core");
+    void real;
+    hooks.markPublished = vi.fn().mockRejectedValue(new Error("db down"));
+    publish.mockResolvedValue({ externalId: "ext-live" });
+    const id = await post();
+    expect(await publishTick(deps())).toEqual({ expired: 0, published: 0, failed: 1 });
+    expect(hooks.markPublished).toHaveBeenCalledTimes(2);
+    expect(await status(id)).toMatchObject({
+      status: "failed", external_post_id: "ext-live",
+      publish_error: "published as ext-live but status update failed: db down",
+    });
+    expect(notify.mock.calls[0].join(" ")).toMatch(/do not repost/i);
+    expect(publish).toHaveBeenCalledTimes(1);
+  });
+
+  it("markPublished succeeding on the retry counts as published", async () => {
+    const real: any = await vi.importActual("@carepost/core");
+    hooks.markPublished = vi.fn().mockRejectedValueOnce(new Error("blip")).mockImplementation(real.markPublished);
+    publish.mockResolvedValue({ externalId: "e" });
+    const id = await post();
+    expect(await publishTick(deps())).toEqual({ expired: 0, published: 1, failed: 0 });
+    expect((await status(id)).status).toBe("published");
+  });
+
+  it("a throwing markFailed does not strand the rest of the batch", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    hooks.markFailed = vi.fn().mockRejectedValue(new Error("db down"));
+    publish.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce({ externalId: "ok-2" });
+    await post({ planned_at: new Date(Date.now() - 2000) });
+    const b = await post();
+    expect(await publishTick(deps())).toEqual({ expired: 0, published: 1, failed: 1 });
+    expect((await status(b)).status).toBe("published");
+    warn.mockRestore();
   });
 });

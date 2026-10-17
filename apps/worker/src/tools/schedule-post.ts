@@ -297,7 +297,10 @@ export async function schedulePost(input: SchedulePostInput): Promise<SchedulePo
     //    fall back to uploading the local file to catbox and handing that public
     //    URL to Meta — which it trusts unconditionally.
     const tunnelUrl = process.env.POSTIZ_TUNNEL_URL;
-    const health = await isTunnelHealthy();
+    // Only local files need the tunnel/catbox decision; URL-only posts skip the probe.
+    const health = input.images.some(isLocalPath)
+      ? await isTunnelHealthy()
+      : { healthy: true, reason: "no local files" };
     if (!health.healthy) {
       console.warn(
         `[schedule-post] tunnel unhealthy (${health.reason}) — uploading local files via catbox fallback`
