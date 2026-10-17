@@ -30,7 +30,11 @@ import { composeImagePrompt } from "./tools/compose-image-prompt.js";
 import { renderCarouselCover } from "./tools/carousel-cover.js";
 import { renderPhotoOverlay } from "./tools/photo-overlay.js";
 import { renderReactSlide, type SlideKind } from "./tools/react-slide.js";
-import { insertCompetitorSnapshot, getUsedPromptIds, type Db } from "@carepost/core";
+import { insertCompetitorSnapshot, getUsedPromptIds, getPlannedPosts, type Db, type RunKind } from "@carepost/core";
+import { savePost } from "./tools/save-post.js";
+import { formatPlannedPosts } from "./tools/planned-posts.js";
+import { buildBrief } from "./runtime/windows.js";
+import type { ToolContext } from "./runtime/types.js";
 
 function requireNonEmpty<T extends string>(arr: T[], label: string): [T, ...T[]] {
   if (arr.length === 0) throw new Error(`${label} is empty`);
@@ -160,7 +164,7 @@ function buildReactJsxTools(
   return [coverTool, bodyTool];
 }
 
-export function buildTools(brand: BrandConfig, db: Db) {
+export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
   const designSystemId = brand.designSystem ?? "editorial-paper";
   const designSystemsDir = path.resolve("design-systems");
   const designSystem: DesignSystem | null = brand.branding?.enabled
@@ -374,7 +378,7 @@ export function buildTools(brand: BrandConfig, db: Db) {
           betaZodTool({
             name: "generate_image",
             description:
-              "Generate a brand-styled photo on-demand via the carephoto.art API. Use when the prompt bank lacks what you need — trend-reactive content, a very specific concept you can describe, or a fresh angle the bank doesn't cover. Returns a public image URL ready to feed into brand_image / photo_overlay / brand_carousel as 'imageUrl', or directly into schedule_post 'images[]'. Costs credits per call (~$0.04). PREFER browse_prompt_bank for everyday content; reach for this only when no prompt-bank image fits. Do NOT include house-style modifiers in the prompt — carephoto applies them server-side. Just describe the scene and subject.",
+              "Generate a brand-styled photo on-demand via the carephoto.art API. Use when the prompt bank lacks what you need — trend-reactive content, a very specific concept you can describe, or a fresh angle the bank doesn't cover. Returns a public image URL ready to feed into brand_image / photo_overlay / brand_carousel as 'imageUrl', or directly into save_post 'images[]'. Costs credits per call (~$0.04). PREFER browse_prompt_bank for everyday content; reach for this only when no prompt-bank image fits. Do NOT include house-style modifiers in the prompt — carephoto applies them server-side. Just describe the scene and subject.",
             inputSchema: z.object({
               prompt: z
                 .string()
@@ -841,23 +845,47 @@ export function buildTools(brand: BrandConfig, db: Db) {
         return sendNotification(input.subject, input.body);
       },
     }),
+
+    betaZodTool({
+      name: "save_post",
+      description: "Save a finished post as a DRAFT for this brand (it is never published directly). Upload happens automatically. plannedAt must be inside the window given in the run brief. MUST pass promptIds of any prompt-bank images used.",
+      inputSchema: z.object({
+        caption: z.string(),
+        hashtags: z.array(z.string()),
+        images: z.array(z.string()).describe("Local paths or URLs. One = single image, several = carousel (max 10)."),
+        promptIds: z.array(z.string()).describe("Prompt-bank IDs used, empty if none."),
+        plannedAt: z.string().describe("ISO timestamp (UTC) for when the post should go out."),
+        kind: z.enum(["core", "timely"]),
+        rationale: z.string().describe("One paragraph: why this post, why now."),
+      }),
+      run: async (input) => savePost(db, brand, ctx, input),
+    }),
+
+    betaZodTool({
+      name: "get_planned_posts",
+      description: "List this brand's upcoming drafts and scheduled posts for the next 7 days (or to the end of this run's window, if later), so you don't duplicate them.",
+      inputSchema: z.object({}),
+      run: async () => {
+        const now = new Date();
+        const to = new Date(Math.max(now.getTime() + 7 * 86400_000, ctx.window.end.getTime()));
+        return formatPlannedPosts(await getPlannedPosts(db, brand.dbId, now, to), brand.timezone);
+      },
+    }),
   ];
 }
 
-export async function runAgent(
-  brand: BrandConfig,
-  db: Db,
-  opts: { userBrief?: string; maxIterations?: number } = {}
-): Promise<void> {
+export interface RunAgentOptions {
+  kind: RunKind; periodKey: string; now?: Date; userBrief?: string; maxIterations?: number; toolContext: ToolContext;
+}
+export interface RunAgentResult { summary: string; inputTokens: number; outputTokens: number; imageCount: number }
+
+export async function runAgent(brand: BrandConfig, db: Db, opts: RunAgentOptions): Promise<RunAgentResult> {
   const client = new Anthropic();
-  const tools = buildTools(brand, db);
+  const tools = buildTools(brand, db, opts.toolContext);
   const systemPrompt = buildSystemPrompt(brand);
+  const userBrief = buildBrief(brand, opts.kind, opts.periodKey, opts.now ?? new Date(), opts.userBrief);
 
   console.log(`[Agent] Starting daily run for ${brand.name}...`);
-
-  const userBrief =
-    opts.userBrief ??
-    `Run the daily marketing cycle for ${brand.name}. Today is ${new Date().toISOString().split("T")[0]}. Research competitors, check trends, review past performance, and decide on today's content strategy. If you post, schedule it. Always send a summary notification at the end.`;
 
   const runner = client.beta.messages.toolRunner({
     model: "claude-sonnet-4-6",
@@ -876,9 +904,15 @@ export async function runAgent(
 
   let iter = 0;
   let finalMessage: any = null;
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let imageCount = 0;
   for await (const msg of runner as any) {
     iter++;
     const toolUses = (msg.content ?? []).filter((b: any) => b.type === "tool_use");
+    inputTokens += msg.usage?.input_tokens ?? 0;
+    outputTokens += msg.usage?.output_tokens ?? 0;
+    imageCount += toolUses.filter((t: any) => t.name === "generate_image").length;
     const textBlocks = (msg.content ?? []).filter((b: any) => b.type === "text");
     console.log(
       `[Agent] iter=${iter} stop=${msg.stop_reason} tools=[${toolUses.map((t: any) => t.name).join(", ")}] text=${textBlocks[0]?.text?.slice(0, 120) ?? ""}`
@@ -892,4 +926,5 @@ export async function runAgent(
   } else {
     console.log(`[Agent] Run complete after ${iter} iters. (no text in final message, stop=${finalMessage?.stop_reason})`);
   }
+  return { summary: textBlock?.text ?? "", inputTokens, outputTokens, imageCount };
 }

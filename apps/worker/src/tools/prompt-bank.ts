@@ -53,5 +53,5 @@ export function browsePromptBank(
 
   const header = `Prompt Bank (${available.length} available${hiddenCount > 0 ? `, ${hiddenCount} already used and hidden` : ""}${category ? `, category: ${category}` : ""}):`;
 
-  return `${header}\n\nWhen scheduling a post with one of these, pass the prompt IDs to schedule_post's 'promptIds' param so they're tracked as used. Mention the prompt ID and link to https://${domain}/prompt-bank in the caption.\n\n${entries}`;
+  return `${header}\n\nWhen saving a post with one of these, pass the prompt IDs to save_post's 'promptIds' param so they're tracked as used. Mention the prompt ID and link to https://${domain}/prompt-bank in the caption.\n\n${entries}`;
 }

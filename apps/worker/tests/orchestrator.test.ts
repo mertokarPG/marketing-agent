@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { buildTools } from "../src/orchestrator.js";
 import { createTestDb, seedTestBrand } from "@carepost/core/testing";
+import { MemoryStorage, insertPost } from "@carepost/core";
+import type { ToolContext } from "../src/runtime/types.js";
+
+const testCtx = (o: Partial<ToolContext> = {}): ToolContext => ({
+  storage: new MemoryStorage(), runId: null, kind: "manual",
+  window: { start: new Date(), end: new Date(Date.now() + 86400_000) }, notify: async () => "", ...o,
+});
 import type { BrandConfig } from "../src/config/load-brand.js";
 
 const mockBrand: BrandConfig = {
@@ -20,7 +27,7 @@ describe("buildTools", () => {
   it("does not register optional tools without flags", async () => {
     const { db } = await createTestDb();
     const dbId = await seedTestBrand(db);
-    const tools = buildTools({ ...mockBrand, dbId }, db);
+    const tools = buildTools({ ...mockBrand, dbId }, db, testCtx());
     const names = tools.map((t) => t.name);
     expect(names).not.toContain("browse_prompt_bank");
     expect(names).not.toContain("brand_image");
@@ -32,7 +39,7 @@ describe("buildTools", () => {
     const { db } = await createTestDb();
     const dbId = await seedTestBrand(db);
     const brandWithBank = { ...mockBrand, promptBankPath: "/tmp/prompts.json" };
-    const tools = buildTools({ ...brandWithBank, dbId }, db);
+    const tools = buildTools({ ...brandWithBank, dbId }, db, testCtx());
     expect(tools.map((t) => t.name)).toContain("browse_prompt_bank");
   });
 
@@ -48,7 +55,7 @@ describe("buildTools", () => {
         defaultAspectRatio: "4:5",
       },
     };
-    const tools = buildTools({ ...brandWithGen, dbId }, db);
+    const tools = buildTools({ ...brandWithGen, dbId }, db, testCtx());
     expect(tools.map((t) => t.name)).toContain("generate_image");
   });
 
@@ -64,7 +71,7 @@ describe("buildTools", () => {
         defaultAspectRatio: "4:5",
       },
     };
-    const tools = buildTools({ ...brandDisabled, dbId }, db);
+    const tools = buildTools({ ...brandDisabled, dbId }, db, testCtx());
     expect(tools.map((t) => t.name)).not.toContain("generate_image");
   });
 
@@ -83,7 +90,7 @@ describe("buildTools", () => {
         showSwipeArrow: true,
       },
     };
-    const tools = buildTools({ ...brandWithBranding, dbId }, db);
+    const tools = buildTools({ ...brandWithBranding, dbId }, db, testCtx());
     const names = tools.map((t) => t.name);
     expect(names).toContain("brand_image");
     expect(names).toContain("brand_carousel");
@@ -106,8 +113,37 @@ describe("buildTools", () => {
         showSwipeArrow: true,
       },
     };
-    const tools = buildTools({ ...brandDisabled, dbId }, db);
+    const tools = buildTools({ ...brandDisabled, dbId }, db, testCtx());
     expect(tools.map((t) => t.name)).not.toContain("brand_image");
     expect(tools.map((t) => t.name)).not.toContain("brand_carousel");
+  });
+
+  it("registers save_post and get_planned_posts instead of schedule_post", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
+    const names = buildTools({ ...mockBrand, dbId }, db, testCtx()).map((t) => t.name);
+    expect(names).toContain("save_post");
+    expect(names).toContain("get_planned_posts");
+    expect(names).not.toContain("schedule_post");
+  });
+
+  it("get_planned_posts covers the whole run window even beyond 7 days", async () => {
+    const { db } = await createTestDb();
+    const dbId = await seedTestBrand(db);
+    const day = 86400_000;
+    const now = Date.now();
+    const post = (caption: string, at: number) => insertPost(db, {
+      brand_id: dbId, kind: "core", status: "pending_approval", planned_at: new Date(at),
+      caption, hashtags: [], media: [], prompt_ids: [], rationale: "r",
+    });
+    await post("Soon post", now + 2 * day);
+    await post("Late window post", now + 8 * day);
+    await post("After window post", now + 10 * day);
+    const ctx = testCtx({ kind: "weekly_plan", window: { start: new Date(now), end: new Date(now + 9 * day) } });
+    const tool = buildTools({ ...mockBrand, dbId }, db, ctx).find((t) => t.name === "get_planned_posts") as any;
+    const out: string = await tool.run({});
+    expect(out).toContain("Soon post");
+    expect(out).toContain("Late window post");
+    expect(out).not.toContain("After window post");
   });
 });

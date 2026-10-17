@@ -35,4 +35,9 @@ describe("sendNotification", () => {
 
     consoleSpy.mockRestore();
   });
+
+  it("sends to explicit recipients when given", async () => {
+    const result = await sendNotification("Timely post", "body", { to: ["a@x.be", "b@x.be"] });
+    expect(result).toContain("a@x.be, b@x.be");
+  });
 });

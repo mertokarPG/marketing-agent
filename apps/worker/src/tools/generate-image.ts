@@ -88,6 +88,6 @@ export async function generateImage(input: GenerateImageInput): Promise<string> 
     `Model: ${data.model} | ${data.width}×${data.height} | ${data.creditsUsed} credits ($${data.estimatedUsdCost.toFixed(3)})`,
     `Generation ID: ${data.generationId}`,
     ``,
-    `Pass imageUrl into brand_image / photo_overlay / brand_carousel as the imageUrl, or to schedule_post images[] for an unbranded post.`,
+    `Pass imageUrl into brand_image / photo_overlay / brand_carousel as the imageUrl, or to save_post images[] for an unbranded post.`,
   ].join("\n");
 }

@@ -84,6 +84,13 @@ describe("buildSystemPrompt", () => {
     expect(prompt).not.toContain("brand_image");
     expect(prompt).not.toContain("brand_carousel");
   });
+
+  it("lists product photos and never mentions schedule_post", () => {
+    const prompt = buildSystemPrompt({ ...mockBrand, productPhotos: [{ path: "assets/products/serum.jpg", label: "Rosehip serum" }] });
+    expect(prompt).toContain("Rosehip serum");
+    expect(prompt).toContain("assets/products/serum.jpg");
+    expect(prompt).not.toContain("schedule_post");
+  });
 });
 
 describe("loadBrand", () => {

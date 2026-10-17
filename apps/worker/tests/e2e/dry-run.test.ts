@@ -1,6 +1,13 @@
 // tests/e2e/dry-run.test.ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createTestDb, seedTestBrand } from "@carepost/core/testing";
+import { MemoryStorage } from "@carepost/core";
+import type { ToolContext } from "../../src/runtime/types.js";
+
+const testCtx = (o: Partial<ToolContext> = {}): ToolContext => ({
+  storage: new MemoryStorage(), runId: null, kind: "manual",
+  window: { start: new Date(), end: new Date(Date.now() + 86400_000) }, notify: async () => "", ...o,
+});
 import { buildTools } from "../../src/orchestrator.js";
 import type { BrandConfig } from "../../src/config/load-brand.js";
 
@@ -25,7 +32,7 @@ describe("dry run", () => {
 
     const { db } = await createTestDb();
     const dbId = await seedTestBrand(db);
-    const tools = buildTools({ ...mockBrand, dbId }, db);
+    const tools = buildTools({ ...mockBrand, dbId }, db, testCtx());
 
     // Each tool should have name and run function
     for (const tool of tools) {
