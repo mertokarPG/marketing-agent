@@ -4,13 +4,9 @@ import {
 import type { ToolContext } from "../runtime/types.js";
 import { ImageSourceError, loadImageSource, type ImageSourceDeps, type LoadedImage } from "./image-source.js";
 import { withKeyLock } from "./save-post.js";
+import { captionRejection } from "./caption-rules.js";
 
 export interface RevisePostInput { caption: string; hashtags: string[]; images: string[]; rationale: string }
-
-/** Instagram's caption limit, counted the way it is published: caption + "\n\n" + hashtags joined by spaces. */
-const MAX_PUBLISHED_CAPTION = 2200;
-const publishedLength = (caption: string, hashtags: string[]) =>
-  caption.length + (hashtags.length > 0 ? 2 + hashtags.join(" ").length : 0);
 
 /**
  * Saves the agent's reworked version over the post being revised and hands it back for review. It never goes
@@ -34,8 +30,8 @@ async function revisePostLocked(
   if (current.status === "done") return "revise_post rejected: this post was already revised in this run. Do not call revise_post again; finish now.";
   if (current.status !== "running") return `revise_post rejected: the revision is ${current.status}, not running.`;
   if (input.images.length < 1 || input.images.length > 10) return "revise_post rejected: provide 1–10 images.";
-  if (publishedLength(input.caption, input.hashtags) > MAX_PUBLISHED_CAPTION)
-    return `revise_post rejected: caption plus hashtags exceed Instagram's ${MAX_PUBLISHED_CAPTION} characters. Shorten it.`;
+  const captionProblem = captionRejection(input.caption, input.hashtags);
+  if (captionProblem) return `revise_post rejected: ${captionProblem}`;
 
   // Load and validate every image before uploading anything (same rules as save_post).
   const images: LoadedImage[] = [];

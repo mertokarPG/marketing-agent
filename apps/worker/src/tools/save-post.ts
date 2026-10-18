@@ -5,6 +5,7 @@ import {
 } from "@carepost/core";
 import type { ToolContext } from "../runtime/types.js";
 import { ImageSourceError, loadImageSource, type ImageSourceDeps, type LoadedImage } from "./image-source.js";
+import { captionRejection } from "./caption-rules.js";
 
 export interface SavePostInput {
   caption: string; hashtags: string[]; images: string[]; promptIds: string[];
@@ -39,6 +40,8 @@ async function savePostLocked(
   if (plannedAt < ctx.window.start || plannedAt >= ctx.window.end)
     return `save_post rejected: plannedAt ${plannedAt.toISOString()} is outside the allowed window ${ctx.window.start.toISOString()} → ${ctx.window.end.toISOString()}.`;
   if (input.images.length < 1 || input.images.length > 10) return "save_post rejected: provide 1–10 images.";
+  const captionProblem = captionRejection(input.caption, input.hashtags);
+  if (captionProblem) return `save_post rejected: ${captionProblem}`;
 
   if (ctx.kind === "daily_check") {
     if (input.kind !== "timely") return `save_post rejected: posts from a daily check must be "timely".`;

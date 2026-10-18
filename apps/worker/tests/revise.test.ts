@@ -177,6 +177,21 @@ describe("revise runs", () => {
     expect((await getRevision(db, rev))!).toMatchObject({ status: "failed", error: "boom" });
   });
 
+  it("revise_post rejects what the dashboard would refuse: empty caption, more than 5 hashtags, too long", async () => {
+    const id = await post({ status: "approved" });
+    const revId = await redo(id);
+    await db.query("update post_revisions set status = 'running' where id = $1", [revId]);
+    const rev = (await getRevision(db, revId))!;
+    const b = { dbId: brandId, brandDir: os.tmpdir() } as unknown as BrandConfig;
+    const c: ToolContext = { storage, runId: null, kind: "revise", periodKey: revId, window: { start: new Date(), end: new Date() }, notify: async () => "" };
+    const call = (caption: string, hashtags: string[]) => revisePost(db, b, c, rev, { caption, hashtags, images: ["x.png"], rationale: "r" });
+    expect(await call("   ", [])).toMatch(/^revise_post rejected: the caption is empty/);
+    expect(await call("ok", ["#a", "#b", "#c", "#d", "#e", "#f"])).toMatch(/^revise_post rejected: use at most 5 hashtags/);
+    expect(await call("x".repeat(2190), ["#abcdefghij"])).toMatch(/^revise_post rejected: caption plus hashtags exceed/);
+    expect((await getPost(id)).status).toBe("reworking");
+    expect((await getRevision(db, revId))!.status).toBe("running");
+  });
+
   it("revise runs are claimed before weekly plans", async () => {
     await enqueueRun(db, brandId, "weekly_plan", "2026-W43");
     const id = await post();

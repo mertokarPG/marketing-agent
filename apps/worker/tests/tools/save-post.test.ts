@@ -49,6 +49,13 @@ describe("savePost", () => {
     expect(storage.files.get(`post-media/${brand.dbId}/${p.id}/0.png`)?.contentType).toBe("image/png");
   });
 
+  it("rejects an empty caption, more than 5 hashtags, or a caption too long for Instagram", async () => {
+    expect(await savePost(db, brand, ctx(), input({ caption: " \n " }))).toMatch(/^save_post rejected: the caption is empty/);
+    expect(await savePost(db, brand, ctx(), input({ hashtags: ["#a", "#b", "#c", "#d", "#e", "#f"] }))).toMatch(/^save_post rejected: use at most 5 hashtags/);
+    expect(await savePost(db, brand, ctx(), input({ caption: "x".repeat(2195), hashtags: ["#skin"] }))).toMatch(/^save_post rejected: caption plus hashtags exceed/);
+    expect(await rows()).toHaveLength(0);
+  });
+
   it("rejects plannedAt outside the run window", async () => {
     const msg = await savePost(db, brand, ctx(), input({ plannedAt: "2026-11-02T08:00:00Z" }));
     expect(msg).toMatch(/outside the allowed window/);
