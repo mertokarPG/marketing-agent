@@ -7,7 +7,7 @@ import { NeedsYouCard } from "@/components/needs-you-card";
 import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
-import { isRedone, reworkingText, reworkMinutes, type Revision } from "@/lib/redo";
+import { loadRedoState, signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "./brand-context";
 import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou } from "./home-data";
 
@@ -50,46 +50,12 @@ export default async function BrandHome({ params, searchParams }: {
   if (metricsQ.error) throw new Error(`metrics query failed: ${metricsQ.error.message}`);
   const results = summarizeResults(published, metricsQ.data ?? [], now);
 
-  // Redos: veils for posts being reworked (the feedback sent, how long it should take), and
-  // "New version · needs your OK" for waiting posts whose redo came back untouched.
+  // Veils for posts being reworked and "New version · needs your OK" for untouched redos.
   const shownPosts = [...new Map([...weekPosts, ...waiting].map((p) => [p.id, p])).values()];
-  const redoIds = shownPosts.filter((p) => p.status === "reworking" || p.status === "pending_approval").map((p) => p.id);
-  const reworks: Record<string, string> = {};
-  const redone: Record<string, boolean> = {};
-  if (redoIds.length) {
-    const hasReworking = shownPosts.some((p) => p.status === "reworking");
-    const [revQ, genQ] = await Promise.all([
-      supabase.from("post_revisions").select("post_id, status, feedback, created_at, finished_at").in("post_id", redoIds).order("created_at", { ascending: false }),
-      hasReworking
-        ? supabase.from("brands").select("image_generation").eq("id", brand.id).maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-    if (revQ.error) console.warn(`[home] redo query failed: ${revQ.error.message}`);
-    const byPost = new Map<string, Revision[]>();
-    for (const r of (revQ.data ?? []) as (Revision & { post_id: string })[]) byPost.set(r.post_id, [...(byPost.get(r.post_id) ?? []), r]);
-    const minutes = reworkMinutes(genQ.data?.image_generation);
-    for (const p of shownPosts) {
-      const revs = byPost.get(p.id) ?? [];
-      if (p.status === "reworking") reworks[p.id] = reworkingText(revs[0]?.feedback ?? null, minutes, 40);
-      else if (isRedone(p, revs)) redone[p.id] = true;
-    }
-  }
-
-  // One signed-URL call per bucket for every visible tile.
-  const wanted = new Map<string, { id: string; path: string }[]>();
-  for (const p of [...weekPosts, ...waiting]) {
-    const m = p.media?.[0];
-    if (!m?.storage_path) continue;
-    const bucket = m.bucket === "brand-assets" ? "brand-assets" : "post-media";
-    wanted.set(bucket, [...(wanted.get(bucket) ?? []), { id: p.id, path: m.storage_path }]);
-  }
-  const thumbs: Record<string, string | null> = {};
-  await Promise.all([...wanted].map(async ([bucket, items]) => {
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrls([...new Set(items.map((i) => i.path))], 3600);
-    if (error) console.warn(`[home] signed urls failed for ${bucket}: ${error.message}`);
-    const byPath = new Map((data ?? []).map((d) => [d.path, d.signedUrl]));
-    for (const i of items) thumbs[i.id] = byPath.get(i.path) ?? null;
-  }));
+  const [{ reworks, redone }, thumbs] = await Promise.all([
+    loadRedoState(supabase, brand.id, shownPosts, "home"),
+    signThumbs(supabase, shownPosts, "home"),
+  ]);
 
   const days = buildWeek(weekPosts, weekStart, tz);
   const first = waiting[0];
