@@ -5,10 +5,11 @@ import { reschedule } from "@/app/b/[slug]/posts/[id]/actions";
 import { isPastLocal, validLocalTime } from "@/app/b/[slug]/posts/[id]/post-data";
 
 /** "Goes out" line with the format chip, and a date + time picker in the brand's timezone. */
-export function TimePicker({ slug, postId, goesOut, chip, editable, initial, timezone, openInitially, notice }: {
+export function TimePicker({ slug, postId, goesOut, label, chip, editable, initial, timezone, openInitially, notice }: {
   slug: string;
   postId: string;
   goesOut: string;
+  label: string;
   chip: string;
   editable: boolean;
   initial: { ymd: string; hhmm: string; minYmd: string };
@@ -35,7 +36,7 @@ export function TimePicker({ slug, postId, goesOut, chip, editable, initial, tim
   return (
     <div>
       <div className="pv-label">
-        <span>Goes out</span>
+        <span>{label}</span>
         {editable && !open && <button type="button" className="linkish" onClick={() => setOpen(true)}>Change time</button>}
       </div>
       <div className="when"><span className="d wide">{goesOut}</span><span className="chip">{chip}</span></div>

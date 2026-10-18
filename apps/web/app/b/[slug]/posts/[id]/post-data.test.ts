@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseCaption, joinCaption, parseTags, publishedLength, captionLimit, captionProblem, stepNav, postActions,
-  goesOutLabel, formatChip, previewCaption, lastChangedText, validLocalTime, isPastLocal, latestMetrics,
+  goesOutLabel, formatChip, whenLabel, previewCaption, lastChangedText, validLocalTime, isPastLocal, latestMetrics,
 } from "./post-data";
 
 describe("parseCaption / joinCaption", () => {
@@ -136,6 +136,13 @@ describe("formatting", () => {
     expect(formatChip(1)).toBe("Single photo");
     expect(formatChip(5)).toBe("Carousel · 5 photos");
     expect(formatChip(0)).toBe("No photos yet");
+    expect(formatChip(0, "published")).toBe("No photos saved");
+    expect(formatChip(1, "published")).toBe("Single photo");
+  });
+  it("whenLabel says Went out once a post is out", () => {
+    expect(whenLabel("published")).toBe("Went out");
+    expect(whenLabel("pending_approval")).toBe("Goes out");
+    expect(whenLabel("approved")).toBe("Goes out");
   });
   it("previewCaption truncates at a word and flags it", () => {
     expect(previewCaption("short one", 20)).toEqual({ text: "short one", more: false });

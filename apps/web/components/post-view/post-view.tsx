@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PostViewData } from "@/app/b/[slug]/posts/[id]/load-post";
-import { joinCaption, formatChip } from "@/app/b/[slug]/posts/[id]/post-data";
+import { joinCaption, formatChip, whenLabel } from "@/app/b/[slug]/posts/[id]/post-data";
 import { latestRevisionState, REDO_FAILED } from "@/lib/redo";
 import { InstagramPreview } from "./instagram-preview";
 import { SlideSheet, useSlides, type Slide } from "./slide-sheet";
@@ -185,7 +185,8 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
             slug={slug}
             postId={post.id}
             goesOut={data.goesOut}
-            chip={formatChip(slideEdit.slides.length)}
+            label={whenLabel(post.status)}
+            chip={formatChip(slideEdit.slides.length, post.status)}
             editable={editable}
             initial={data.time}
             timezone={data.brand.timezone}

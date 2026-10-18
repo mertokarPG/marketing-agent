@@ -139,7 +139,7 @@ export async function loadPost(slug: string, id: string, review: boolean): Promi
     label: postLabel(post, brand, now, { redone: isRedone(post, revisions) }),
     weekday: weekdayName(post.planned_at, tz),
     goesOut: goesOutLabel(post.planned_at, tz),
-    chip: formatChip(media.length),
+    chip: formatChip(media.length, post.status),
     lastChanged: lastChangedText({ by: post.last_changed_by, at: post.last_changed_at }, userQ.data.user?.id ?? null, tz),
     metrics: latestMetrics((metricsQ.data ?? []) as Metrics[]),
     nav,

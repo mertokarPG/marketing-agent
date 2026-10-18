@@ -127,8 +127,13 @@ export function weekdayName(iso: string, tz: string): string {
   return parts(iso, tz, { weekday: "long" }).weekday;
 }
 
-export function formatChip(count: number): string {
-  if (count <= 0) return "No photos yet";
+/** "Went out" once the post is published, "Goes out" before. */
+export function whenLabel(status: string): string {
+  return status === "published" ? "Went out" : "Goes out";
+}
+
+export function formatChip(count: number, status?: string): string {
+  if (count <= 0) return status === "published" ? "No photos saved" : "No photos yet";
   return count === 1 ? "Single photo" : `Carousel · ${count} photos`;
 }
 
