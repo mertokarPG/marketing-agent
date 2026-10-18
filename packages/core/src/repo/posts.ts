@@ -2,13 +2,14 @@ import type { Db } from "../db.js";
 import { iso } from "./sql.js";
 
 export type PostKind = "core" | "timely";
-export type PostStatus = "pending_approval" | "approved" | "publishing" | "published" | "failed" | "rejected" | "expired";
-export interface MediaItem { storage_path: string; width?: number; height?: number }
+export type PostStatus = "pending_approval" | "approved" | "publishing" | "published" | "failed" | "rejected" | "expired" | "reworking";
+export interface MediaItem { storage_path: string; width?: number; height?: number; bucket?: "post-media" | "brand-assets" }
 export interface PostRow {
   id: string; brand_id: string; run_id: string | null; kind: PostKind; status: PostStatus; planned_at: Date;
   caption: string; hashtags: string[]; media: MediaItem[]; prompt_ids: string[]; rationale: string;
   external_post_id: string | null; published_at: Date | null; publish_error: string | null;
   is_outlier: boolean; notes: string | null; created_at: Date; updated_at: Date;
+  needs_new_time: boolean; last_changed_by: string | null; last_changed_at: Date | null;
 }
 export interface PostInsert {
   id?: string; brand_id: string; run_id?: string | null; kind: PostKind; status: PostStatus; planned_at: Date;
@@ -82,7 +83,7 @@ export async function setPostOutlier(db: Db, postId: string, isOutlier: boolean,
 }
 
 export async function expirePendingPosts(db: Db): Promise<number> {
-  const rows = await db.query("update posts set status = 'expired' where status = 'pending_approval' and planned_at <= now() returning id");
+  const rows = await db.query("update posts set status = 'expired' where status = 'pending_approval' and not needs_new_time and planned_at <= now() returning id");
   return rows.length;
 }
 
@@ -98,7 +99,8 @@ export const MISSED_WINDOW_HOURS = 6;
 export async function expireMissedApprovedPosts(db: Db): Promise<number> {
   const rows = await db.query(
     `update posts set status = 'expired', publish_error = 'missed publish window'
-     where status = 'approved' and planned_at < now() - make_interval(hours => $1) returning id`,
+     where status = 'approved' and planned_at < now() - make_interval(hours => $1)
+       and brand_id in (select id from brands where publisher is not null) returning id`,
     [MISSED_WINDOW_HOURS]);
   return rows.length;
 }

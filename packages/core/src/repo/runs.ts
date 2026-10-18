@@ -1,6 +1,6 @@
 import type { Db } from "../db.js";
 
-export type RunKind = "weekly_plan" | "daily_check" | "manual";
+export type RunKind = "weekly_plan" | "daily_check" | "manual" | "revise";
 export type RunStatus = "queued" | "running" | "succeeded" | "failed";
 export interface RunRow {
   id: string; brand_id: string; kind: RunKind; period_key: string; status: RunStatus;
@@ -19,14 +19,14 @@ export async function enqueueRun(db: Db, brandId: string, kind: RunKind, periodK
 
 const CLAIM_SET = `status = 'running', started_at = now(), heartbeat_at = now(), attempts = attempts + 1, error = null`;
 
-/** Claims the oldest queued scheduled run of an active brand. Manual runs are CLI-only (their brief
+/** Claims the oldest queued scheduled run (revise runs first) of an active brand. Manual runs are CLI-only (their brief
  *  lives in the CLI process), so the queue never picks them up; the CLI claims them with claimRunById. */
 export async function claimNextRun(db: Db): Promise<RunRow | null> {
   const rows = await db.query<RunRow>(
     `update agent_runs set ${CLAIM_SET}
      where id = (select r.id from agent_runs r join brands b on b.id = r.brand_id
                  where r.status = 'queued' and r.kind <> 'manual' and b.status = 'active'
-                 order by r.created_at
+                 order by (r.kind = 'revise') desc, r.created_at
                  for update of r skip locked limit 1)
      returning *`
   );
