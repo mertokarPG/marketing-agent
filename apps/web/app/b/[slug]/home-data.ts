@@ -17,11 +17,15 @@ export function homeLede(
   if (!weekHasPosts) return "Your first plan arrives Sunday morning.";
   const lead = "Your Instagram is planned for the week.";
   if (!brand.publisher) return `${lead} Nothing goes out until Instagram is connected.`;
-  if (brand.approval_mode === "auto") return "Your Instagram is planned for the week and goes out on its own.";
+  if (brand.approval_mode === "autopilot") return "Your Instagram is planned for the week and goes out on its own.";
   if (waitingCount > 0) {
     return `${lead} ${waitingCount} ${waitingCount === 1 ? "post is" : "posts are"} waiting for your OK; nothing goes out without it.`;
   }
   return `${lead} Nothing is waiting for your OK.`;
+}
+
+export function showsNeedsYou(brand: { approval_mode: string; status: string }, waitingCount: number): boolean {
+  return brand.approval_mode !== "autopilot" && brand.status !== "paused" && waitingCount > 0;
 }
 
 export function firstGoesOut(iso: string, tz: string): { day: string; time: string } {
@@ -51,6 +55,7 @@ export function weekRangeLabel(weekStartYmd: string): string {
 export function resolveWeek(param: string | undefined, currentStart: string): string {
   if (!param || !/^\d{4}-\d{2}-\d{2}$/.test(param)) return currentStart;
   const [y, m, d] = param.split("-").map(Number);
+  if (y < 2000 || y > 2100) return currentStart;
   const dt = new Date(Date.UTC(y, m - 1, d));
   if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return currentStart;
   return dt.getUTCDay() === 1 ? param : currentStart;

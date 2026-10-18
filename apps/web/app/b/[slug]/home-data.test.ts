@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults } from "./home-data";
+import { waitingPosts, homeLede, firstGoesOut, showsNeedsYou, postTitle, weekRangeLabel, resolveWeek, summarizeResults } from "./home-data";
 
 const now = new Date("2026-10-19T12:00:00Z");
 const p = (id: string, status: string, planned_at: string) => ({ id, status, planned_at, caption: "" });
@@ -26,11 +26,20 @@ describe("homeLede", () => {
     expect(homeLede(b, 1, true)).toBe("Your Instagram is planned for the week. 1 post is waiting for your OK; nothing goes out without it.");
   });
   it("nothing waiting", () => expect(homeLede(b, 0, true)).toBe("Your Instagram is planned for the week. Nothing is waiting for your OK."));
-  it("autopilot", () => expect(homeLede({ ...b, approval_mode: "auto" }, 0, true)).toBe("Your Instagram is planned for the week and goes out on its own."));
+  it("homeLede for an autopilot brand", () => expect(homeLede({ ...b, approval_mode: "autopilot" }, 0, true)).toBe("Your Instagram is planned for the week and goes out on its own."));
   it("no publisher", () => expect(homeLede({ ...b, publisher: null }, 2, true)).toBe("Your Instagram is planned for the week. Nothing goes out until Instagram is connected."));
 });
 
+describe("showsNeedsYou", () => {
+  const b = { approval_mode: "review", status: "active" };
+  it("review brand with waiting posts", () => expect(showsNeedsYou(b, 2)).toBe(true));
+  it("hidden when nothing waiting", () => expect(showsNeedsYou(b, 0)).toBe(false));
+  it("hidden for autopilot", () => expect(showsNeedsYou({ ...b, approval_mode: "autopilot" }, 2)).toBe(false));
+  it("hidden when paused", () => expect(showsNeedsYou({ ...b, status: "paused" }, 2)).toBe(false));
+});
+
 describe("helpers", () => {
+  it("resolveWeek rejects out-of-range years", () => expect(resolveWeek("9999-12-27", "2026-10-19")).toBe("2026-10-19"));
   it("firstGoesOut", () => expect(firstGoesOut("2026-10-20T08:00:00Z", "Europe/Brussels")).toEqual({ day: "Tuesday", time: "10:00" }));
   it("postTitle", () => {
     expect(postTitle("Studio portraits, shot on film.\nMore here", 4)).toBe("Studio portraits, shot on");

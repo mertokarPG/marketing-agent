@@ -8,7 +8,7 @@ import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
 import { loadBrand } from "./brand-context";
-import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults } from "./home-data";
+import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou } from "./home-data";
 
 type Media = { storage_path: string; bucket?: string };
 type Row = TilePost & { media: Media[] | null };
@@ -44,7 +44,7 @@ export default async function BrandHome({ params, searchParams }: {
   const published = resQ.data ?? [];
 
   const metricsQ = published.length
-    ? await supabase.from("post_metrics").select("post_id, reach, measured_at").eq("brand_id", brand.id).in("post_id", published.map((p) => p.id))
+    ? await supabase.from("post_metrics").select("post_id, reach, measured_at").eq("brand_id", brand.id).in("post_id", published.map((p) => p.id)).order("measured_at", { ascending: false })
     : { data: [], error: null };
   if (metricsQ.error) throw new Error(`metrics query failed: ${metricsQ.error.message}`);
   const results = summarizeResults(published, metricsQ.data ?? [], now);
@@ -59,14 +59,14 @@ export default async function BrandHome({ params, searchParams }: {
   }
   const thumbs: Record<string, string | null> = {};
   await Promise.all([...wanted].map(async ([bucket, items]) => {
-    const { data } = await supabase.storage.from(bucket).createSignedUrls([...new Set(items.map((i) => i.path))], 3600);
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrls([...new Set(items.map((i) => i.path))], 3600);
+    if (error) console.warn(`[home] signed urls failed for ${bucket}: ${error.message}`);
     const byPath = new Map((data ?? []).map((d) => [d.path, d.signedUrl]));
     for (const i of items) thumbs[i.id] = byPath.get(i.path) ?? null;
   }));
 
   const days = buildWeek(weekPosts, weekStart, tz);
   const first = waiting[0];
-  const reviewMode = brand.approval_mode !== "auto" && brand.status !== "paused";
   const weekHasPosts = weekPosts.length > 0 || waiting.length > 0;
   const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", day: "numeric" });
   const bestTitle = results.best ? postTitle(results.best.caption) : null;
@@ -77,7 +77,7 @@ export default async function BrandHome({ params, searchParams }: {
       <h1 className="hero wide">{greeting(now, tz, name)}, <b>{name.toUpperCase()}.</b></h1>
       <p className="lede">{homeLede(brand, waiting.length, weekHasPosts)}</p>
 
-      {reviewMode && first && (
+      {showsNeedsYou(brand, waiting.length) && first && (
         <NeedsYouCard
           count={waiting.length}
           goesOut={firstGoesOut(first.planned_at, tz)}
