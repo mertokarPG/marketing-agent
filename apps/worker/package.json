@@ -8,6 +8,7 @@
     "agent": "tsx src/cli.ts",
     "seed-brand": "tsx scripts/seed-brand.ts",
     "migrate-sqlite": "tsx scripts/migrate-sqlite.ts",
+    "attach-legacy-images": "tsx scripts/attach-legacy-images.ts",
     "flag-outlier": "tsx scripts/flag-outlier.ts",
     "test": "vitest run",
     "test:watch": "vitest",
