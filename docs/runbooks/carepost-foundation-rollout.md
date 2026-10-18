@@ -212,14 +212,15 @@ Imported rows have status `published`, so they can never be republished, and the
 
 The dashboard (home, post view with approve / edit / redo, calendar, results, brand page) needs two migrations and a worker that understands revise runs. Order matters: **worker before web**, so every "Redo" a user sends has a consumer.
 
-- [x] **Migrations** `20261018120000_dashboard_schema.sql` (reworking status, revise runs, post versions, brand insights) and `20261018120100_dashboard_rpcs.sql` (role-checked write RPCs). **Already applied to the Carepost Supabase project on 2026-10-18.** For any other environment:
+- [x] **Migrations** `20261018120000_dashboard_schema.sql` (reworking status, revise runs, post versions, brand insights) and `20261018120100_dashboard_rpcs.sql` (role-checked write RPCs). **Already applied to the Carepost Supabase project on 2026-10-18.** Run `supabase migration list` first: if it shows both versions (`20261018120000`, `20261018120100`) as applied on the remote, `supabase db push` should report the database is up to date, and there is nothing to do. For any other environment:
   ```bash
+  supabase migration list      # both versions applied remotely? then stop here
   supabase db push --dry-run   # expect exactly these two files
   supabase db push
   ```
 - [ ] **Deploy the worker first** (Railway, step 6; same variables, nothing new). Verify the log shows `[worker] started` and no env errors. The new worker claims `revise` runs, sweeps redos left on paused brands or orphaned posts, and writes weekly learnings.
 - [ ] **Then deploy the web app** (Vercel, step 2; same variables). Smoke check signed in as the owner: home, a post view, calendar, results and brand page load in dark and light, and on a phone width nothing scrolls sideways.
-- [ ] Note: a redo on a **paused** brand is never claimed by the worker loop. After 10 minutes the worker cancels it and puts the post back to its previous version (the post view says the redo did not go through). Test redo on an active brand, or process that one run by hand with `claimRunById` + `executeRun`.
+- [ ] Note: a redo on a **paused** brand is never claimed by the worker loop. After 10 minutes the worker cancels it and puts the post back to its previous version (the post view says the agent couldn't rework it). Test redo on an active brand, or process that one run by hand with `claimRunById` + `executeRun`.
 - [ ] **Re-attach surviving legacy carephoto images** to the imported posts (so history shows photos instead of "No image"). Dry run first, check the list, then run it for real only after you confirm:
   ```bash
   cd apps/worker
