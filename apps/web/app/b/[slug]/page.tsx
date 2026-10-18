@@ -7,13 +7,13 @@ import { NeedsYouCard } from "@/components/needs-you-card";
 import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
-import { reworkingText, reworkMinutes } from "@/lib/redo";
+import { isRedone, reworkingText, reworkMinutes, type Revision } from "@/lib/redo";
 import { loadBrand } from "./brand-context";
 import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou } from "./home-data";
 
 type Media = { storage_path: string; bucket?: string };
-type Row = TilePost & { media: Media[] | null };
-const COLS = "id, status, planned_at, needs_new_time, caption, media";
+type Row = TilePost & { media: Media[] | null; last_changed_at: string | null };
+const COLS = "id, status, planned_at, needs_new_time, caption, media, last_changed_at";
 
 export default async function BrandHome({ params, searchParams }: {
   params: Promise<{ slug: string }>;
@@ -50,19 +50,28 @@ export default async function BrandHome({ params, searchParams }: {
   if (metricsQ.error) throw new Error(`metrics query failed: ${metricsQ.error.message}`);
   const results = summarizeResults(published, metricsQ.data ?? [], now);
 
-  // Veils for posts being reworked: the feedback that was sent and how long it should take.
-  const reworkIds = weekPosts.filter((p) => p.status === "reworking").map((p) => p.id);
+  // Redos: veils for posts being reworked (the feedback sent, how long it should take), and
+  // "New version · needs your OK" for waiting posts whose redo came back untouched.
+  const shownPosts = [...new Map([...weekPosts, ...waiting].map((p) => [p.id, p])).values()];
+  const redoIds = shownPosts.filter((p) => p.status === "reworking" || p.status === "pending_approval").map((p) => p.id);
   const reworks: Record<string, string> = {};
-  if (reworkIds.length) {
+  const redone: Record<string, boolean> = {};
+  if (redoIds.length) {
+    const hasReworking = shownPosts.some((p) => p.status === "reworking");
     const [revQ, genQ] = await Promise.all([
-      supabase.from("post_revisions").select("post_id, feedback, created_at").in("post_id", reworkIds).order("created_at", { ascending: false }),
-      supabase.from("brands").select("image_generation").eq("id", brand.id).maybeSingle(),
+      supabase.from("post_revisions").select("post_id, status, feedback, created_at, finished_at").in("post_id", redoIds).order("created_at", { ascending: false }),
+      hasReworking
+        ? supabase.from("brands").select("image_generation").eq("id", brand.id).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
     if (revQ.error) console.warn(`[home] redo query failed: ${revQ.error.message}`);
+    const byPost = new Map<string, Revision[]>();
+    for (const r of (revQ.data ?? []) as (Revision & { post_id: string })[]) byPost.set(r.post_id, [...(byPost.get(r.post_id) ?? []), r]);
     const minutes = reworkMinutes(genQ.data?.image_generation);
-    for (const id of reworkIds) {
-      const latest = (revQ.data ?? []).find((r) => r.post_id === id);
-      reworks[id] = reworkingText(latest?.feedback ?? null, minutes, 40);
+    for (const p of shownPosts) {
+      const revs = byPost.get(p.id) ?? [];
+      if (p.status === "reworking") reworks[p.id] = reworkingText(revs[0]?.feedback ?? null, minutes, 40);
+      else if (isRedone(p, revs)) redone[p.id] = true;
     }
   }
 
@@ -98,7 +107,7 @@ export default async function BrandHome({ params, searchParams }: {
         <NeedsYouCard
           count={waiting.length}
           goesOut={firstGoesOut(first.planned_at, tz)}
-          items={waiting.map((w) => ({ id: w.id, dayLabel: dayFmt.format(new Date(w.planned_at)), title: postTitle(w.caption) }))}
+          items={waiting.map((w) => ({ id: w.id, dayLabel: dayFmt.format(new Date(w.planned_at)), title: postTitle(w.caption), redone: !!redone[w.id] }))}
           reviewHref={`/b/${slug}/posts/${first.id}?review=1`}
         />
       )}
@@ -107,7 +116,7 @@ export default async function BrandHome({ params, searchParams }: {
         <h2 className="t wide">This <b>week</b></h2>
         <WeekNav slug={slug} prev={addDaysYmd(weekStart, -7)} next={addDaysYmd(weekStart, 7)} label={weekRangeLabel(weekStart)} isCurrent={weekStart === thisWeek} />
       </div>
-      <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} reworks={reworks} />
+      <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} reworks={reworks} redone={redone} />
 
       <ResultsStrip slug={slug} reach={results.reach} changePct={results.changePct} bestTitle={bestTitle} />
       <p className="closing wide">Post <b>with care.</b></p>

@@ -27,3 +27,17 @@ describe("postLabel", () => {
     expect(postLabel(post, brand, now)).toEqual({ text, tone });
   });
 });
+
+describe("postLabel after a redo", () => {
+  const pending = { status: "pending_approval", planned_at: future, needs_new_time: false };
+  it("says a new version is waiting when the redo came back untouched", () => {
+    expect(postLabel(pending, pub, now, { redone: true })).toEqual({ text: "New version · needs your OK", tone: "needs" });
+  });
+  it("still asks for a new time first", () => {
+    expect(postLabel({ ...pending, needs_new_time: true }, pub, now, { redone: true })).toEqual({ text: "Pick a new time", tone: "needs" });
+  });
+  it("ignores redone for other statuses and when not set", () => {
+    expect(postLabel({ ...pending, status: "approved" }, pub, now, { redone: true })).toEqual({ text: "Scheduled", tone: "ok" });
+    expect(postLabel(pending, pub, now, { redone: false })).toEqual({ text: "Needs your OK", tone: "needs" });
+  });
+});

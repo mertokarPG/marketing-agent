@@ -7,7 +7,7 @@ import type { PostActionsView } from "@/app/b/[slug]/posts/[id]/post-data";
 export type After = "approved" | "skipped" | "later" | "keep" | "undone";
 
 /** The buttons at the bottom of the right column, by status and mode. Viewers and read-only posts get none. */
-export function PostActions({ slug, postId, view, flush, onAfter, locked = false }: {
+export function PostActions({ slug, postId, view, flush, onAfter, locked = false, hint = null }: {
   slug: string;
   postId: string;
   view: PostActionsView;
@@ -15,6 +15,8 @@ export function PostActions({ slug, postId, view, flush, onAfter, locked = false
   onAfter: (what: After) => void;
   /** A redo is being sent: nothing may change the post meanwhile. */
   locked?: boolean;
+  /** Why the buttons are off right now, e.g. while an earlier version is shown. */
+  hint?: string | null;
 }) {
   const [pending, start] = useTransition();
   const busy = pending || locked;
@@ -71,7 +73,7 @@ export function PostActions({ slug, postId, view, flush, onAfter, locked = false
       {view.kind === "approved" && (
         <div className="pv-actions">
           <span className="pill done" role="status">Approved ✓</span>
-          <button type="button" className="linkish" disabled={busy} onClick={() => run("undone", () => unapprove(slug, postId), false)}>Undo</button>
+          <button type="button" className="linkish" disabled={busy} onClick={() => run("undone", () => unapprove(slug, postId))}>Undo</button>
           <button type="button" className="linkish skip" disabled={busy} onClick={() => setConfirming(true)}>{skipLabel}</button>
         </div>
       )}
@@ -81,6 +83,7 @@ export function PostActions({ slug, postId, view, flush, onAfter, locked = false
           <button type="button" className="linkish skip" disabled={busy} onClick={() => setConfirming(true)}>{skipLabel}</button>
         </div>
       )}
+      {hint && <p className="cap-help">{hint}</p>}
       {view.approveBlocked && <p id={`ab-${postId}`} className="cap-help warn">{view.approveBlocked}</p>}
       {confirmBox}
       {error && <p className="cap-help warn" role="alert">{error}</p>}

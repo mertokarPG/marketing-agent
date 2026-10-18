@@ -15,11 +15,13 @@ export function redoFeedback(typed: string, picks: string[]): string {
   return parts.map((p, i) => (i < parts.length - 1 ? p.replace(/[.\s]+$/, "") : p)).join(". ");
 }
 
+export const PICK_TIME_FIRST = "Pick a new time first, then you can ask the agent.";
+
 export type RedoAvailability = { show: false } | { show: true; allowed: true } | { show: true; allowed: false; reason: string };
 
 /** Whether the redo box shows, and if a redo can't be asked for right now, the reason in plain words. */
 export function redoAvailability(
-  post: { status: string; planned_at: string },
+  post: { status: string; planned_at: string; needs_new_time: boolean },
   brand: { status: string },
   role: string,
   revisions: { status: string }[],
@@ -29,6 +31,9 @@ export function redoAvailability(
   if (post.status !== "pending_approval" && post.status !== "approved") return { show: false };
   const no = (code: string): RedoAvailability => ({ show: true, allowed: false, reason: rpcErrorMessage({ message: `carepost:${code}` }) });
   if (brand.status === "paused") return no("paused");
+  if (post.needs_new_time || new Date(post.planned_at).getTime() <= now.getTime()) {
+    return { show: true, allowed: false, reason: PICK_TIME_FIRST };
+  }
   if (new Date(post.planned_at).getTime() - now.getTime() < TOO_CLOSE_MS) return no("too_close");
   if (revisions.filter((r) => r.status !== "failed").length >= REDO_LIMIT) return no("redo_limit");
   return { show: true, allowed: true };
@@ -46,6 +51,18 @@ export function latestRevisionState(status: string, revisions: Revision[], loade
     return { kind: "failed" };
   }
   return { kind: "none" };
+}
+
+/**
+ * The agent's redo came back and nobody has changed the post since: the worker sets the post's
+ * last_changed_at and the redo's finished_at in one transaction, and any later edit moves last_changed_at on.
+ */
+export function isRedone(post: { status: string; last_changed_at: string | null }, revisions: Revision[]): boolean {
+  if (post.status !== "pending_approval") return false;
+  const latest = [...revisions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (!latest || latest.status !== "done" || !latest.finished_at) return false;
+  if (!post.last_changed_at) return true;
+  return new Date(latest.finished_at).getTime() >= new Date(post.last_changed_at).getTime();
 }
 
 export const REDO_FAILED = "The agent couldn't rework this one. Your post is unchanged.";

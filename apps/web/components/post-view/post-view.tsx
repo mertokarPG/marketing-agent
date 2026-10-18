@@ -206,15 +206,17 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
           )}
           {post.rationale && <p className="why"><b>Why this post:</b> {post.rationale}</p>}
           <RedoPanel
-            key={`r-${post.id}-${data.contentKey}`}
+            key={`r-${post.id}-${data.contentKey}-${post.planned_at}-${post.needs_new_time}`}
             slug={slug}
             postId={post.id}
             availability={data.redo}
             flush={flush}
             onStart={() => setLockedFor(data.contentKey)}
             onDone={(ok) => { if (!ok) setLockedFor(null); }}
+            locked={locked}
           />
-          <PostActions key={`a-${post.id}`} slug={slug} postId={post.id} view={actions} flush={flush} onAfter={onAfter} locked={locked} />
+          <PostActions key={`a-${post.id}`} slug={slug} postId={post.id} view={actions} flush={flush} onAfter={onAfter}
+            locked={locked || version !== null} hint={version ? "Back to current to approve." : null} />
           {!reworking && (
             <VersionList
               slug={slug}

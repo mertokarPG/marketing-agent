@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export type Waiting = { id: string; dayLabel: string; title: string };
+export type Waiting = { id: string; dayLabel: string; title: string; redone?: boolean };
 
 export function NeedsYouCard({ count, goesOut, items, reviewHref }: {
   count: number;
@@ -16,7 +16,7 @@ export function NeedsYouCard({ count, goesOut, items, reviewHref }: {
         <div className="copy">The first one goes out <b>{goesOut.day} at {goesOut.time}</b>. Take a look, tweak the caption if you like, and approve.</div>
         <div className="list">
           {items.slice(0, 6).map((it, i) => (
-            <div key={it.id}><span className="num wide">{String(i + 1).padStart(2, "0")}.</span><span>{it.dayLabel} · {it.title}</span></div>
+            <div key={it.id}><span className="num wide">{String(i + 1).padStart(2, "0")}.</span><span>{it.dayLabel} · {it.title}{it.redone ? " · new version" : ""}</span></div>
           ))}
           <div className="list-cta"><Link href={reviewHref} className="pill">Review posts ↳</Link></div>
         </div>

@@ -3,7 +3,7 @@ import { localParts } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { postLabel } from "@/lib/labels";
 import type { MediaItem } from "@/lib/slides";
-import { redoAvailability, reworkMinutes, versionLabel, type RedoAvailability, type Revision } from "@/lib/redo";
+import { isRedone, redoAvailability, reworkMinutes, versionLabel, type RedoAvailability, type Revision } from "@/lib/redo";
 import { loadBrand } from "../../brand-context";
 import { waitingPosts } from "../../home-data";
 import {
@@ -18,7 +18,7 @@ export type ProductView = { path: string; url: string | null; label: string | nu
 
 export type PostViewData = {
   slug: string;
-  post: { id: string; status: string; caption: string; hashtags: string[]; rationale: string; needs_new_time: boolean };
+  post: { id: string; status: string; planned_at: string; caption: string; hashtags: string[]; rationale: string; needs_new_time: boolean };
   slides: (string | null)[];
   /** The stored slides, parallel to `slides` (signed URLs). */
   media: MediaItem[];
@@ -113,6 +113,7 @@ export async function loadPost(slug: string, id: string, review: boolean): Promi
     post: {
       id: post.id,
       status: post.status,
+      planned_at: post.planned_at,
       caption: post.caption ?? "",
       hashtags: post.hashtags ?? [],
       rationale: post.rationale ?? "",
@@ -135,7 +136,7 @@ export async function loadPost(slug: string, id: string, review: boolean): Promi
     products: productRows ? productRows.map((p, i) => ({ path: p.storage_path, url: productUrls[i], label: p.label })) : null,
     brand: { name: brand.name, handle: brand.instagram_handle ?? brand.slug, logoUrl: brand.logoUrl, timezone: tz },
     actions,
-    label: postLabel(post, brand, now),
+    label: postLabel(post, brand, now, { redone: isRedone(post, revisions) }),
     weekday: weekdayName(post.planned_at, tz),
     goesOut: goesOutLabel(post.planned_at, tz),
     chip: formatChip(media.length),

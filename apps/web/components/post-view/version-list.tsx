@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { restoreVersion } from "@/app/b/[slug]/posts/[id]/actions";
+import { restoreVersion, type ActionResult } from "@/app/b/[slug]/posts/[id]/actions";
+import { FALLBACK } from "@/lib/rpc-errors";
 import type { VersionView } from "@/app/b/[slug]/posts/[id]/load-post";
 
 const NOT_SAVED = "Some changes aren't saved yet. Fix the problem shown above first.";
@@ -40,7 +41,8 @@ export function VersionList({ slug, versions, viewing, onView, editable, flush, 
       // An edit still on its way would land on top of the restored version: save it first.
       if (!(await flush())) { setError(NOT_SAVED); return; }
       onStart();
-      const res = await restoreVersion(slug, id);
+      let res: ActionResult;
+      try { res = await restoreVersion(slug, id); } catch { res = { ok: false, message: FALLBACK }; }
       onDone(res.ok);
       if (!res.ok) setError(res.message);
     });

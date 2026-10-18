@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { redoAvailability, latestRevisionState, reworkingText, reworkMinutes, versionLabel, REDO_MAX } from "./redo";
+import { isRedone, redoAvailability, latestRevisionState, reworkingText, reworkMinutes, versionLabel, REDO_MAX } from "./redo";
 
 const now = new Date("2026-10-18T12:00:00Z");
-const post = (over: Partial<{ status: string; planned_at: string }> = {}) =>
-  ({ status: "pending_approval", planned_at: "2026-10-20T10:00:00Z", ...over });
+const post = (over: Partial<{ status: string; planned_at: string; needs_new_time: boolean }> = {}) =>
+  ({ status: "pending_approval", planned_at: "2026-10-20T10:00:00Z", needs_new_time: false, ...over });
 const active = { status: "active" };
 
 describe("redoAvailability", () => {
@@ -25,6 +25,12 @@ describe("redoAvailability", () => {
     const used = [{ status: "done" }, { status: "done" }, { status: "queued" }];
     expect(redoAvailability(post(), active, "owner", used, now))
       .toEqual({ show: true, allowed: false, reason: "You've used the redos for this post. Edit it yourself or skip it." });
+  });
+  it("asks for a new time first when the time has passed or needs changing", () => {
+    const reason = "Pick a new time first, then you can ask the agent.";
+    expect(redoAvailability(post({ planned_at: "2026-10-18T11:00:00Z" }), active, "owner", [], now)).toEqual({ show: true, allowed: false, reason });
+    expect(redoAvailability(post({ planned_at: "2026-10-18T12:00:00Z" }), active, "owner", [], now)).toEqual({ show: true, allowed: false, reason });
+    expect(redoAvailability(post({ needs_new_time: true }), active, "owner", [], now)).toEqual({ show: true, allowed: false, reason });
   });
   it("doesn't count failed redos toward the limit", () => {
     const tries = [{ status: "done" }, { status: "failed" }, { status: "done" }, { status: "failed" }];
@@ -87,5 +93,27 @@ describe("versionLabel", () => {
       .toBe("Version from Sun 18 Oct at 14:05, before redo: 'more playful'");
     expect(versionLabel({ created_at: "2026-10-18T12:05:00Z", reason: "restore", feedback: null }, "Europe/Brussels"))
       .toBe("Version from Sun 18 Oct at 14:05, before restoring");
+  });
+});
+
+describe("isRedone", () => {
+  const rev = (status: string, created_at: string, finished_at: string | null) => ({ status, created_at, finished_at, feedback: "x" });
+  const p = (last_changed_at: string | null, status = "pending_approval") => ({ status, last_changed_at });
+  it("is true when the latest redo came back and nobody changed the post since", () => {
+    expect(isRedone(p("2026-10-18T12:02:00Z"), [rev("done", "2026-10-18T12:00:00Z", "2026-10-18T12:02:00Z")])).toBe(true);
+  });
+  it("is false once the post was changed after the redo returned", () => {
+    expect(isRedone(p("2026-10-18T12:05:00Z"), [rev("done", "2026-10-18T12:00:00Z", "2026-10-18T12:02:00Z")])).toBe(false);
+  });
+  it("is false when the latest redo failed, there is none, or the post isn't waiting", () => {
+    expect(isRedone(p("2026-10-18T12:02:00Z"), [
+      rev("done", "2026-10-18T11:00:00Z", "2026-10-18T12:02:00Z"),
+      rev("failed", "2026-10-18T12:01:00Z", "2026-10-18T12:02:00Z"),
+    ])).toBe(false);
+    expect(isRedone(p("2026-10-18T12:02:00Z"), [])).toBe(false);
+    expect(isRedone(p("2026-10-18T12:02:00Z", "approved"), [rev("done", "2026-10-18T12:00:00Z", "2026-10-18T12:02:00Z")])).toBe(false);
+  });
+  it("treats a post with no recorded change as untouched", () => {
+    expect(isRedone(p(null), [rev("done", "2026-10-18T12:00:00Z", "2026-10-18T12:02:00Z")])).toBe(true);
   });
 });

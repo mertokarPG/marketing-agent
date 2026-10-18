@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { requestRedo } from "@/app/b/[slug]/posts/[id]/actions";
+import { requestRedo, type ActionResult } from "@/app/b/[slug]/posts/[id]/actions";
 import { QUICK_PICKS, REDO_MAX, redoFeedback, type RedoAvailability } from "@/lib/redo";
 import { FALLBACK } from "@/lib/rpc-errors";
 
@@ -11,7 +11,7 @@ const NOT_SAVED = "Some changes aren't saved yet. Fix the problem shown above fi
  * "Not quite right? Ask the agent": free text plus quick picks, sent as one piece of feedback.
  * Hidden for viewers and posts that can't change; shows the reason instead when a redo isn't possible.
  */
-export function RedoPanel({ slug, postId, availability, flush, onStart, onDone }: {
+export function RedoPanel({ slug, postId, availability, flush, onStart, onDone, locked = false }: {
   slug: string;
   postId: string;
   availability: RedoAvailability;
@@ -20,12 +20,15 @@ export function RedoPanel({ slug, postId, availability, flush, onStart, onDone }
   onStart: () => void;
   /** Called with whether the redo was accepted. */
   onDone: (ok: boolean) => void;
+  /** Something else (a restore) is changing the post: wait for it. */
+  locked?: boolean;
 }) {
   const [typed, setTyped] = useState("");
   const [picks, setPicks] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
-  const [busy, start] = useTransition();
+  const [pending, start] = useTransition();
+  const busy = pending || locked;
 
   if (!availability.show) return null;
   const reason = refused ?? (availability.allowed ? null : availability.reason);
@@ -39,7 +42,8 @@ export function RedoPanel({ slug, postId, availability, flush, onStart, onDone }
     start(async () => {
       if (!(await flush())) { setError(NOT_SAVED); return; }
       onStart();
-      const res = await requestRedo(slug, postId, feedback);
+      let res: ActionResult;
+      try { res = await requestRedo(slug, postId, feedback); } catch { res = { ok: false, message: FALLBACK }; }
       onDone(res.ok);
       if (res.ok) return;
       // A refusal (too close, limit, paused…) replaces the box; an unknown error can be retried.

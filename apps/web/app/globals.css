@@ -274,7 +274,7 @@ input, textarea, select {
 .versions ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .versions li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--rest-border); }
 .versions li.on .v-label { font-weight: 600; }
-.versions .v-label { text-align: left; }
+.versions .v-label { text-align: left; min-width: 0; overflow-wrap: anywhere; }
 .pill.sm { padding: 6px 14px; font-size: 12px; flex: none; }
 
 .when { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
