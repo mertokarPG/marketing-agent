@@ -1,10 +1,11 @@
 import {
-  claimNextRun, finishRun, heartbeatRun, listBrandSources, recoverStaleRuns, requeueRun,
+  claimNextRun, finishRun, heartbeatRun, listBrandSources, recoverStaleRuns, requeueRun, sweepStuckRevisions,
   type BrandConfig, type Db, type RunRow, type StorageClient,
 } from "@carepost/core";
 import type { RunAgentOptions, RunAgentResult } from "../orchestrator.js";
 import type { Publisher } from "../publishers/types.js";
 import { materializeBrand } from "./materialize.js";
+import { assertRevised, failRevision, prepareRevision, type ReviseBriefContext } from "./revise.js";
 import { runWindow } from "./windows.js";
 
 export interface RunDeps {
@@ -49,25 +50,42 @@ export async function executeRun(deps: RunDeps, run: RunRow): Promise<void> {
     const m = await materializeBrand(db, deps.storage, run.brand_id, deps.tmpRoot);
     cleanup = m.cleanup;
     const brand = m.brand;
+    const revise = run.kind === "revise";
 
-    try { await deps.scrape(db, brand.dbId, await listBrandSources(db, brand.dbId)); }
-    catch (e) { console.warn(`[run ${run.id}] scrape failed (continuing): ${msg(e)}`); }
+    let reviseContext: ReviseBriefContext | undefined;
+    if (revise) {
+      // A redo reworks one post: no scraping or metrics ingest, the user is waiting.
+      const prep = await prepareRevision(db, deps.storage, brand, run.period_key);
+      if (prep.status !== "ready") {
+        // Finished elsewhere (e.g. revised before a lost heartbeat, or swept): nothing to run.
+        const owned = await finishRun(db, run.id, run.attempts, prep.status === "done"
+          ? { status: "succeeded", summary: "revision already done" }
+          : { status: "failed", error: "revision already failed" });
+        if (!owned) lostClaim(run, prep.status === "done" ? "success" : "failure");
+        return;
+      }
+      reviseContext = prep.context;
+    } else {
+      try { await deps.scrape(db, brand.dbId, await listBrandSources(db, brand.dbId)); }
+      catch (e) { console.warn(`[run ${run.id}] scrape failed (continuing): ${msg(e)}`); }
 
-    const publisher = deps.publisherFor(brand);
-    if (publisher?.ingestMetrics) {
-      try { await publisher.ingestMetrics(brand, db); }
-      catch (e) { console.warn(`[run ${run.id}] metrics ingest failed (continuing): ${msg(e)}`); }
+      const publisher = deps.publisherFor(brand);
+      if (publisher?.ingestMetrics) {
+        try { await publisher.ingestMetrics(brand, db); }
+        catch (e) { console.warn(`[run ${run.id}] metrics ingest failed (continuing): ${msg(e)}`); }
+      }
     }
 
     const now = deps.now();
     const result = await deps.agent(brand, db, {
-      kind: run.kind, periodKey: run.period_key, now,
+      kind: run.kind, periodKey: run.period_key, now, mode: revise ? "revise" : "plan", revise: reviseContext,
       toolContext: {
-        storage: deps.storage, runId: run.id, kind: run.kind,
+        storage: deps.storage, runId: run.id, kind: run.kind, periodKey: run.period_key,
         window: runWindow(brand, run.kind, run.period_key, now),
         notify: (s, b, to) => deps.notify(s, b, to),
       },
     });
+    if (revise) await assertRevised(db, run.period_key);
     const owned = await finishRun(db, run.id, run.attempts, {
       status: "succeeded", summary: result.summary, inputTokens: result.inputTokens,
       outputTokens: result.outputTokens, imageCount: result.imageCount,
@@ -77,6 +95,7 @@ export async function executeRun(deps: RunDeps, run: RunRow): Promise<void> {
     if (run.attempts < (deps.maxAttempts ?? 3)) {
       if (!(await requeueRun(db, run.id, run.attempts, msg(e)))) lostClaim(run, "re-queue");
     } else if (await finishRun(db, run.id, run.attempts, { status: "failed", error: msg(e) })) {
+      if (run.kind === "revise") await failRevision(db, run.period_key, msg(e));
       try { await notifyRunFailed(deps, run, msg(e)); }
       catch (ne) { console.warn(`[run ${run.id}] failure notification failed: ${msg(ne)}`); }
     } else {
@@ -94,9 +113,12 @@ export async function executeRun(deps: RunDeps, run: RunRow): Promise<void> {
 export async function runLoopTick(deps: RunDeps): Promise<boolean> {
   const { failedRuns } = await recoverStaleRuns(deps.db, { maxAttempts: deps.maxAttempts ?? 3 });
   for (const r of failedRuns) {
+    if (r.kind === "revise") await failRevision(deps.db, r.period_key, r.error ?? "worker heartbeat lost");
     try { await notifyRunFailed(deps, r, r.error ?? "worker heartbeat lost"); }
     catch (e) { console.warn(`[run ${r.id}] failure notification failed: ${msg(e)}`); }
   }
+  try { await sweepStuckRevisions(deps.db); }
+  catch (e) { console.warn(`stuck revision sweep failed: ${msg(e)}`); }
   const run = await claimNextRun(deps.db);
   if (!run) return false;
   await executeRun(deps, run);

@@ -45,6 +45,16 @@ describe("publishTick", () => {
     expect(await status(id)).toMatchObject({ status: "published", external_post_id: "ext-9" });
   });
 
+  it("publish signs brand-assets media from the brand-assets bucket", async () => {
+    publish.mockResolvedValue({ externalId: "ext-2" });
+    await post({ media: [{ storage_path: `${brand}/p/0.png` }, { storage_path: `${brand}/products/rose.jpg`, bucket: "brand-assets" }] });
+    await publishTick(deps());
+    expect(storage.signedCalls.map((c) => c.bucket)).toEqual(["post-media", "brand-assets"]);
+    expect(publish).toHaveBeenCalledWith(expect.objectContaining({
+      mediaUrls: [`memory://post-media/${brand}/p/0.png?ttl=3600`, `memory://brand-assets/${brand}/products/rose.jpg?ttl=3600`],
+    }));
+  });
+
   it("expires late drafts and never publishes them, even if approval arrives after", async () => {
     const id = await post({ status: "pending_approval" });
     expect((await publishTick(deps())).expired).toBe(1);

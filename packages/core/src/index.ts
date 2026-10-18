@@ -6,6 +6,8 @@ export * from "./repo/metrics.js";
 export * from "./repo/trends.js";
 export * from "./repo/competitors.js";
 export * from "./repo/runs.js";
+export * from "./repo/revisions.js";
+export * from "./repo/insights.js";
 export * from "./storage.js";
 export * from "./storage-supabase.js";
 export * from "./brand-config.js";

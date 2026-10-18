@@ -30,8 +30,11 @@ import { composeImagePrompt } from "./tools/compose-image-prompt.js";
 import { renderCarouselCover } from "./tools/carousel-cover.js";
 import { renderPhotoOverlay } from "./tools/photo-overlay.js";
 import { renderReactSlide, type SlideKind } from "./tools/react-slide.js";
-import { insertCompetitorSnapshot, getUsedPromptIds, getPlannedPosts, type Db, type RunKind } from "@carepost/core";
+import { insertCompetitorSnapshot, getUsedPromptIds, getPlannedPosts, getRevision, type Db, type RunKind } from "@carepost/core";
 import { savePost } from "./tools/save-post.js";
+import { revisePost } from "./tools/revise-post.js";
+import { saveLearnings } from "./tools/save-learnings.js";
+import type { ReviseBriefContext } from "./runtime/revise.js";
 import { formatPlannedPosts } from "./tools/planned-posts.js";
 import { buildBrief } from "./runtime/windows.js";
 import type { ToolContext } from "./runtime/types.js";
@@ -164,7 +167,46 @@ function buildReactJsxTools(
   return [coverTool, bodyTool];
 }
 
-export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
+/** Tools that plan or research new posts. A revise run reworks one existing post, so it gets none of these. */
+const PLAN_ONLY_TOOLS = new Set(["scrape_competitor", "search_trends", "get_trending_topics", "get_hot_topics", "save_post", "get_planned_posts"]);
+
+export type ToolMode = "plan" | "revise";
+
+export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext, mode: ToolMode = "plan") {
+  const tools = buildAllTools(brand, db, ctx);
+  if (mode === "plan") {
+    if (ctx.kind !== "weekly_plan") return tools;
+    return [...tools, betaZodTool({
+      name: "save_learnings",
+      description: "Save 2–3 plain-language learnings from this brand's recent performance (what worked, what didn't, what to try), for the brand owner to read. Call it once per weekly plan; a second call replaces the first.",
+      inputSchema: z.object({
+        learnings: z.array(z.string().max(200)).min(2).max(3)
+          .describe("2–3 short sentences in plain language, each under 200 characters. No jargon, no metrics dumps."),
+      }),
+      run: async (input) => saveLearnings(db, brand, ctx, input),
+    })];
+  }
+  return [
+    ...tools.filter((t) => !PLAN_ONLY_TOOLS.has(t.name)),
+    betaZodTool({
+      name: "revise_post",
+      description: "Save your reworked version over the post being revised and send it back to the owner for review. Call it exactly once, with the complete new caption, hashtags and slides (in order). It keeps the post's date and time.",
+      inputSchema: z.object({
+        caption: z.string(),
+        hashtags: z.array(z.string()),
+        images: z.array(z.string()).describe("Local paths or URLs of every slide, in order (1–10). Reuse the current slide paths from the brief to keep a slide."),
+        rationale: z.string().describe("One paragraph: what you changed and why, in light of the feedback."),
+      }),
+      run: async (input) => {
+        const revision = ctx.periodKey ? await getRevision(db, ctx.periodKey) : null;
+        if (!revision) return "revise_post rejected: this run has no revision to save.";
+        return revisePost(db, brand, ctx, revision, input);
+      },
+    }),
+  ];
+}
+
+function buildAllTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
   const designSystemId = brand.designSystem ?? "editorial-paper";
   const designSystemsDir = path.resolve("design-systems");
   const designSystem: DesignSystem | null = brand.branding?.enabled
@@ -891,14 +933,19 @@ export function buildTools(brand: BrandConfig, db: Db, ctx: ToolContext) {
 
 export interface RunAgentOptions {
   kind: RunKind; periodKey: string; now?: Date; userBrief?: string; maxIterations?: number; toolContext: ToolContext;
+  /** "revise" reworks one existing post (revise_post instead of save_post); defaults from `kind`. */
+  mode?: ToolMode;
+  /** The post and feedback a revise run works on. */
+  revise?: ReviseBriefContext;
 }
 export interface RunAgentResult { summary: string; inputTokens: number; outputTokens: number; imageCount: number }
 
 export async function runAgent(brand: BrandConfig, db: Db, opts: RunAgentOptions): Promise<RunAgentResult> {
   const client = new Anthropic();
-  const tools = buildTools(brand, db, opts.toolContext);
+  const mode = opts.mode ?? (opts.kind === "revise" ? "revise" : "plan");
+  const tools = buildTools(brand, db, opts.toolContext, mode);
   const systemPrompt = buildSystemPrompt(brand);
-  const userBrief = buildBrief(brand, opts.kind, opts.periodKey, opts.now ?? new Date(), opts.userBrief);
+  const userBrief = buildBrief(brand, opts.kind, opts.periodKey, opts.now ?? new Date(), opts.userBrief, opts.revise);
 
   console.log(`[Agent] Starting daily run for ${brand.name}...`);
 

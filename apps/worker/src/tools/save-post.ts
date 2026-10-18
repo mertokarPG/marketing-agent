@@ -13,15 +13,17 @@ export interface SavePostInput {
 
 // The tool runner executes a message's tool calls in parallel, so the duplicate
 // guards (check, then insert) must not interleave for the same brand.
-const brandLocks = new Map<string, Promise<unknown>>();
-function withBrandLock<T>(brandId: string, fn: () => Promise<T>): Promise<T> {
-  const prev = brandLocks.get(brandId) ?? Promise.resolve();
+const locks = new Map<string, Promise<unknown>>();
+/** Runs `fn` after every earlier call holding the same key has settled (in-process only). */
+export function withKeyLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prev = locks.get(key) ?? Promise.resolve();
   const next = prev.then(fn, fn);
   const tail = next.catch(() => undefined);
-  brandLocks.set(brandId, tail);
-  void tail.then(() => { if (brandLocks.get(brandId) === tail) brandLocks.delete(brandId); });
+  locks.set(key, tail);
+  void tail.then(() => { if (locks.get(key) === tail) locks.delete(key); });
   return next;
 }
+const withBrandLock = <T>(brandId: string, fn: () => Promise<T>) => withKeyLock(`brand:${brandId}`, fn);
 
 export function savePost(
   db: Db, brand: BrandConfig, ctx: ToolContext, input: SavePostInput, deps?: ImageSourceDeps

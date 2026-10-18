@@ -27,7 +27,8 @@ export async function publishTick(deps: {
     let externalId: string;
     try {
       // Sign at publish time so the URLs are valid while the platform fetches them; never stored.
-      const mediaUrls = await Promise.all(post.media.map((m) => deps.storage.signedUrl(BUCKETS.media, m.storage_path, SIGNED_URL_TTL_SEC)));
+      // Product photos added from the brand's assets stay in brand-assets; everything else is post-media.
+      const mediaUrls = await Promise.all(post.media.map((m) => deps.storage.signedUrl(m.bucket ?? BUCKETS.media, m.storage_path, SIGNED_URL_TTL_SEC)));
       ({ externalId } = await deps.publishers[post.publisher].publish({
         id: post.id, brandId: post.brand_id, caption: post.caption, hashtags: post.hashtags, mediaUrls,
       }));
