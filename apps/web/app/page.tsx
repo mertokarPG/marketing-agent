@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
   const { data: brands, error } = await supabase.from("brands").select("slug, name").order("name");
   if (error) throw new Error(`brands query failed: ${error.message}`);
   if (brands?.length === 1) redirect(`/b/${brands[0].slug}`);

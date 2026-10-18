@@ -10,3 +10,8 @@ export function switchHref(currentPath: string, toSlug: string): string {
   const tab = m?.[1];
   return tab ? `/b/${toSlug}/${tab}` : `/b/${toSlug}`;
 }
+
+/** The token-hash confirm route is a local dev/screenshot aid only: never in production, magiclink only. */
+export function confirmAllowed(nodeEnv: string | undefined, type: string | null): boolean {
+  return nodeEnv !== "production" && type === "magiclink";
+}

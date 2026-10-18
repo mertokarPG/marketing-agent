@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canEdit, switchHref } from "./brand-context";
+import { canEdit, switchHref, confirmAllowed } from "./brand-context";
 
 describe("canEdit", () => {
   it("allows owner and editor, not viewer", () => {
@@ -22,5 +22,15 @@ describe("switchHref", () => {
   });
   it("falls back to the brand home outside /b/", () => {
     expect(switchHref("/", "b")).toBe("/b/b");
+  });
+});
+
+describe("confirmAllowed", () => {
+  it("is dev-only and magiclink-only", () => {
+    expect(confirmAllowed("development", "magiclink")).toBe(true);
+    expect(confirmAllowed(undefined, "magiclink")).toBe(true);
+    expect(confirmAllowed("production", "magiclink")).toBe(false);
+    expect(confirmAllowed("development", "recovery")).toBe(false);
+    expect(confirmAllowed("development", null)).toBe(false);
   });
 });

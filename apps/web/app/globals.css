@@ -29,8 +29,8 @@
   --rest-fg: rgba(244, 240, 233, 0.45);
   --input-bg: var(--violet);
   --focus: var(--electric);
-  --grain-a: 0.34; /* 240px tile */
-  --grain-b: 0.18; /* 800px tile */
+  --grain-a: 0.2; /* 240px tile */
+  --grain-b: 0.1; /* 800px tile */
   --ribbon-pink: 0.85;
   --ribbon-violet: 0.9;
   --ribbon-glow: 0.35;
@@ -54,8 +54,8 @@
   --rest-border: rgba(6, 1, 23, 0.14);
   --rest-fg: rgba(6, 1, 23, 0.45);
   --input-bg: #fff;
-  --grain-a: 0.16;
-  --grain-b: 0.09;
+  --grain-a: 0.1;
+  --grain-b: 0.06;
   --ribbon-pink: 0.55;
   --ribbon-violet: 0.55;
   --ribbon-glow: 0;
@@ -101,12 +101,12 @@ input, textarea, select {
 .rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
 
 /* Grain ribbon: decorative, behind content */
-.ribbon-bg { position: absolute; inset: 0 0 auto 0; height: 100vh; overflow: hidden; pointer-events: none; z-index: 0; }
+.ribbon-bg { position: absolute; inset: 0 0 auto 0; height: 70vh; overflow: hidden; pointer-events: none; z-index: 0; }
 .ribbon-bg .ribbon { position: absolute; border-radius: 50%; filter: blur(28px); }
 .ribbon-bg .r1 { left: -10%; top: -38%; width: 120%; height: 60%; border: 26px solid var(--pink); opacity: var(--ribbon-pink); transform: rotate(-6deg); }
 .ribbon-bg .r2 { left: -5%; top: -34%; width: 118%; height: 60%; border: 34px solid var(--electric); opacity: var(--ribbon-violet); transform: rotate(-6deg); filter: blur(36px); }
-.ribbon-bg .r3 { left: 40%; top: 55%; width: 90%; height: 70%; border: 40px solid var(--electric); opacity: var(--ribbon-glow); filter: blur(60px); }
-.ribbon-bg .grain { position: absolute; inset: 0; background-image: url("/grain.png"); background-size: 240px 240px; mix-blend-mode: overlay; opacity: var(--grain-a); }
+.ribbon-bg .r3 { left: 40%; top: 20%; width: 90%; height: 70%; border: 40px solid var(--electric); opacity: var(--ribbon-glow); filter: blur(60px); }
+.ribbon-bg .grain { position: absolute; inset: 0; -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%); background-image: url("/grain.png"); background-size: 240px 240px; mix-blend-mode: overlay; opacity: var(--grain-a); }
 .ribbon-bg .grain.c { background-size: 800px 800px; opacity: var(--grain-b); }
 
 @media (prefers-reduced-motion: reduce) {
