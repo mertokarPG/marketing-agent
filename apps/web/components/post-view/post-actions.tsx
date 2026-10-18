@@ -7,21 +7,24 @@ import type { PostActionsView } from "@/app/b/[slug]/posts/[id]/post-data";
 export type After = "approved" | "skipped" | "later" | "keep" | "undone";
 
 /** The buttons at the bottom of the right column, by status and mode. Viewers and read-only posts get none. */
-export function PostActions({ slug, postId, view, flush, onAfter }: {
+export function PostActions({ slug, postId, view, flush, onAfter, locked = false }: {
   slug: string;
   postId: string;
   view: PostActionsView;
   flush: () => Promise<boolean>;
   onAfter: (what: After) => void;
+  /** A redo is being sent: nothing may change the post meanwhile. */
+  locked?: boolean;
 }) {
-  const [busy, start] = useTransition();
+  const [pending, start] = useTransition();
+  const busy = pending || locked;
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
   const run = (what: After, fn: () => Promise<ActionResult>, saveFirst = true) => {
     setError(null);
     start(async () => {
-      if (saveFirst && !(await flush())) { setError("Fix the caption first; it isn't saved yet."); return; }
+      if (saveFirst && !(await flush())) { setError("Some changes aren't saved yet. Fix the problem shown above first."); return; }
       const res = await fn();
       if (!res.ok) { setError(res.message); return; }
       setConfirming(false);

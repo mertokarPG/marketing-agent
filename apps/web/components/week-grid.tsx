@@ -2,12 +2,14 @@ import Link from "next/link";
 import type { Day } from "@/lib/week";
 import { PostTile, type TilePost } from "./post-tile";
 
-export function WeekGrid({ days, slug, thumbs, brand, now }: {
+export function WeekGrid({ days, slug, thumbs, brand, now, reworks = {} }: {
   days: Day<TilePost>[];
   slug: string;
   thumbs: Record<string, string | null>;
   brand: { publisher: string | null; approval_mode: string };
   now: Date;
+  /** Veil text for posts the agent is reworking, by post id. */
+  reworks?: Record<string, string>;
 }) {
   return (
     <div className="week">
@@ -18,7 +20,7 @@ export function WeekGrid({ days, slug, thumbs, brand, now }: {
             {d.posts.length === 0 ? (
               <div className="rest">Rest day</div>
             ) : d.posts.map((p) => (
-              <PostTile key={p.id} post={p} href={`/b/${slug}/posts/${p.id}`} thumb={thumbs[p.id] ?? null} brand={brand} now={now} />
+              <PostTile key={p.id} post={p} href={`/b/${slug}/posts/${p.id}`} thumb={thumbs[p.id] ?? null} brand={brand} now={now} rework={reworks[p.id]} />
             ))}
           </div>
         </div>

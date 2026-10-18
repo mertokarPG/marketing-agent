@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { zonedTimeToUtc } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { rpcErrorMessage } from "@/lib/rpc-errors";
+import { cleanMedia, type MediaItem } from "@/lib/slides";
+import { REDO_MAX } from "@/lib/redo";
 import { captionProblem, validLocalTime } from "./post-data";
 
 export type ActionResult = { ok: true } | { ok: false; message: string };
@@ -57,4 +59,21 @@ export async function reschedule(slug: string, postId: string, localYmd: string,
   const at = zonedTimeToUtc(localYmd, localHhmm, brand.timezone);
   if (at.getTime() <= Date.now()) return { ok: false, message: rpcErrorMessage({ message: "carepost:in_past" }) };
   return call(slug, "reschedule_post", { p_post: postId, p_planned_at: at.toISOString() });
+}
+
+export async function saveSlides(slug: string, postId: string, media: MediaItem[]): Promise<ActionResult> {
+  const clean = cleanMedia(media);
+  if (!isId(postId) || !clean) return { ok: false, message: INVALID };
+  return call(slug, "update_post_media", { p_post: postId, p_media: clean });
+}
+
+export async function requestRedo(slug: string, postId: string, feedback: string): Promise<ActionResult> {
+  const text = typeof feedback === "string" ? feedback.trim() : "";
+  if (!isId(postId) || text.length < 1 || text.length > REDO_MAX) return { ok: false, message: INVALID };
+  return call(slug, "request_post_redo", { p_post: postId, p_feedback: text });
+}
+
+export async function restoreVersion(slug: string, versionId: string): Promise<ActionResult> {
+  if (!isId(versionId)) return { ok: false, message: INVALID };
+  return call(slug, "restore_post_version", { p_version: versionId });
 }

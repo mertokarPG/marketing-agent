@@ -7,6 +7,7 @@ import { NeedsYouCard } from "@/components/needs-you-card";
 import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
+import { reworkingText, reworkMinutes } from "@/lib/redo";
 import { loadBrand } from "./brand-context";
 import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou } from "./home-data";
 
@@ -49,6 +50,22 @@ export default async function BrandHome({ params, searchParams }: {
   if (metricsQ.error) throw new Error(`metrics query failed: ${metricsQ.error.message}`);
   const results = summarizeResults(published, metricsQ.data ?? [], now);
 
+  // Veils for posts being reworked: the feedback that was sent and how long it should take.
+  const reworkIds = weekPosts.filter((p) => p.status === "reworking").map((p) => p.id);
+  const reworks: Record<string, string> = {};
+  if (reworkIds.length) {
+    const [revQ, genQ] = await Promise.all([
+      supabase.from("post_revisions").select("post_id, feedback, created_at").in("post_id", reworkIds).order("created_at", { ascending: false }),
+      supabase.from("brands").select("image_generation").eq("id", brand.id).maybeSingle(),
+    ]);
+    if (revQ.error) console.warn(`[home] redo query failed: ${revQ.error.message}`);
+    const minutes = reworkMinutes(genQ.data?.image_generation);
+    for (const id of reworkIds) {
+      const latest = (revQ.data ?? []).find((r) => r.post_id === id);
+      reworks[id] = reworkingText(latest?.feedback ?? null, minutes, 40);
+    }
+  }
+
   // One signed-URL call per bucket for every visible tile.
   const wanted = new Map<string, { id: string; path: string }[]>();
   for (const p of [...weekPosts, ...waiting]) {
@@ -90,7 +107,7 @@ export default async function BrandHome({ params, searchParams }: {
         <h2 className="t wide">This <b>week</b></h2>
         <WeekNav slug={slug} prev={addDaysYmd(weekStart, -7)} next={addDaysYmd(weekStart, 7)} label={weekRangeLabel(weekStart)} isCurrent={weekStart === thisWeek} />
       </div>
-      <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} />
+      <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} reworks={reworks} />
 
       <ResultsStrip slug={slug} reach={results.reach} changePct={results.changePct} bestTitle={bestTitle} />
       <p className="closing wide">Post <b>with care.</b></p>

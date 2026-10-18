@@ -4,23 +4,27 @@ import { postTitle } from "@/app/b/[slug]/home-data";
 
 export type TilePost = { id: string; status: string; planned_at: string; needs_new_time: boolean; caption: string | null };
 
-export function PostTile({ post, href, thumb, brand, now }: {
+export function PostTile({ post, href, thumb, brand, now, rework }: {
   post: TilePost;
   href: string;
   thumb: string | null;
   brand: { publisher: string | null; approval_mode: string };
   now: Date;
+  /** "Reworking: 'more playful'… about 2 minutes" while the agent redoes this post. */
+  rework?: string | null;
 }) {
   const label = postLabel(post, brand, now);
+  const reworking = post.status === "reworking";
   return (
     <div className="post-tile">
-      <Link href={href} className="tile" aria-label={`Open post: ${postTitle(post.caption)}`}>
+      <Link href={href} className={`tile${reworking ? " reworking" : ""}`} aria-label={`Open post: ${postTitle(post.caption)}`}>
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={thumb} alt="" loading="lazy" />
         ) : (
           <span className="tile-ph wide">{postTitle(post.caption, 6)}</span>
         )}
+        {reworking && <span className="veil">{rework ?? "Reworking…"}</span>}
       </Link>
       <span className={`tag${label.tone === "needs" ? " needs" : ""}`}>{label.text}</span>
     </div>

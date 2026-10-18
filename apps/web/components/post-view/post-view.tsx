@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PostViewData } from "@/app/b/[slug]/posts/[id]/load-post";
-import { joinCaption } from "@/app/b/[slug]/posts/[id]/post-data";
-import { InstagramPreview, SlideSheet } from "./instagram-preview";
+import { joinCaption, formatChip } from "@/app/b/[slug]/posts/[id]/post-data";
+import { latestRevisionState, REDO_FAILED } from "@/lib/redo";
+import { InstagramPreview } from "./instagram-preview";
+import { SlideSheet, useSlides, type Slide } from "./slide-sheet";
+import { RedoPanel } from "./redo-panel";
+import { ReworkingState } from "./reworking-state";
+import { VersionList, VersionToggle } from "./version-list";
 import { CaptionEditor } from "./caption-editor";
 import { TimePicker } from "./time-picker";
 import { PostActions, type After } from "./post-actions";
@@ -26,9 +31,36 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
   const [text, setText] = useState(() => joinCaption(post.caption, post.hashtags));
   const flushRef = useRef<(() => Promise<boolean>) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const slideCount = data.slides.length;
+  // The first load's time: a failed redo is reported only when it ended after the post was opened.
+  const [loadedAt] = useState(data.loadedAt);
+  // Set while a redo is being sent; cleared by itself once the post's content key changes.
+  const [lockedFor, setLockedFor] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<number | null>(null);
+  const [seenKey, setSeenKey] = useState(data.contentKey);
+  if (seenKey !== data.contentKey) {
+    // The post was replaced (status change, redo, restore): show the new current version.
+    setSeenKey(data.contentKey);
+    setViewing(null);
+    setText(joinCaption(post.caption, post.hashtags));
+  }
+  const locked = lockedFor === data.contentKey;
+  const reworking = post.status === "reworking";
+  const editable = actions.editable && !locked;
 
-  const flush = useCallback(() => flushRef.current?.() ?? Promise.resolve(true), []);
+  const slideEdit = useSlides({ slug, postId: post.id, media: data.media, urls: data.slides, resetKey: data.contentKey });
+  const version = viewing !== null ? data.versions[viewing] ?? null : null;
+  const shown: Slide[] = version ? version.slides.map((url, i) => ({ key: i, item: { storage_path: "" }, url })) : slideEdit.slides;
+  const shownUrls = shown.map((s) => s.url);
+  const slideCount = shown.length;
+  const current = Math.min(slide, Math.max(0, slideCount - 1));
+  const rev = latestRevisionState(post.status, data.revisions, loadedAt);
+
+  const flushSlides = slideEdit.flush;
+  // Caption and slides both saved (or nothing pending); false stops Approve, Redo and Restore.
+  const flush = useCallback(async () => {
+    const [c, s] = await Promise.all([flushRef.current?.() ?? Promise.resolve(true), flushSlides()]);
+    return c && s;
+  }, [flushSlides]);
 
   const close = useCallback(() => {
     void flush();
@@ -122,23 +154,39 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
       </div>
 
       <div className="pv-body">
-        <div className="pv-media">
+        <div className={`pv-media${reworking ? " dim" : ""}`} aria-busy={reworking || undefined}>
           <div>
-            <div className="pv-label"><span>How it looks on Instagram</span></div>
-            <InstagramPreview handle={data.brand.handle} logoUrl={data.brand.logoUrl} slides={data.slides} current={slide} onSelect={setSlide} text={text} />
+            <div className="pv-label">
+              <span>{version ? "The previous version" : "How it looks on Instagram"}</span>
+              {!reworking && <VersionToggle versions={data.versions} viewing={viewing} onView={(i) => { setViewing(i); setSlide(0); }} />}
+            </div>
+            <InstagramPreview handle={data.brand.handle} logoUrl={data.brand.logoUrl} slides={shownUrls} current={current} onSelect={setSlide} text={version ? version.text : text} />
           </div>
-          <SlideSheet slides={data.slides} current={slide} onSelect={setSlide} />
+          <SlideSheet
+            slides={shown}
+            current={current}
+            onSelect={setSlide}
+            editable={editable && !version}
+            onChange={(next, select) => { slideEdit.change(next); setSlide(select); }}
+            save={version ? undefined : slideEdit.save}
+            onUndo={slideEdit.undo}
+            products={data.products}
+            label={version ? (version.count === 1 ? "Its 1 slide" : `Its ${version.count} slides, in order`) : undefined}
+          />
         </div>
 
         <div className="pv-side">
-          {actions.note && <p className="pv-note">{actions.note}</p>}
+          {reworking
+            ? <ReworkingState feedback={rev.kind === "reworking" ? rev.feedback : null} minutes={data.reworkMinutes} />
+            : actions.note && <p className="pv-note">{actions.note}</p>}
+          {rev.kind === "failed" && <p className="pv-note" role="status">{REDO_FAILED}</p>}
           <TimePicker
-            key={`t-${post.id}`}
+            key={`t-${post.id}-${data.contentKey}`}
             slug={slug}
             postId={post.id}
             goesOut={data.goesOut}
-            chip={data.chip}
-            editable={actions.editable}
+            chip={formatChip(slideEdit.slides.length)}
+            editable={editable}
             initial={data.time}
             timezone={data.brand.timezone}
             openInitially={actions.openTimePicker}
@@ -146,18 +194,39 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
           />
           {actions.results ? <PostResults metrics={data.metrics} /> : (
             <CaptionEditor
-              key={`c-${post.id}`}
+              key={`c-${post.id}-${data.contentKey}`}
               slug={slug}
               postId={post.id}
               caption={post.caption}
               hashtags={post.hashtags}
-              editable={actions.editable}
+              editable={editable}
               onTextChange={setText}
               flushRef={flushRef}
             />
           )}
           {post.rationale && <p className="why"><b>Why this post:</b> {post.rationale}</p>}
-          <PostActions key={`a-${post.id}`} slug={slug} postId={post.id} view={actions} flush={flush} onAfter={onAfter} />
+          <RedoPanel
+            key={`r-${post.id}-${data.contentKey}`}
+            slug={slug}
+            postId={post.id}
+            availability={data.redo}
+            flush={flush}
+            onStart={() => setLockedFor(data.contentKey)}
+            onDone={(ok) => { if (!ok) setLockedFor(null); }}
+          />
+          <PostActions key={`a-${post.id}`} slug={slug} postId={post.id} view={actions} flush={flush} onAfter={onAfter} locked={locked} />
+          {!reworking && (
+            <VersionList
+              slug={slug}
+              versions={data.versions}
+              viewing={viewing}
+              onView={(i) => { setViewing(i); setSlide(0); }}
+              editable={editable}
+              flush={flush}
+              onStart={() => setLockedFor(data.contentKey)}
+              onDone={(ok) => { if (ok) { setViewing(null); setSlide(0); } else setLockedFor(null); }}
+            />
+          )}
           {data.lastChanged && <p className="pv-changed">{data.lastChanged}</p>}
         </div>
       </div>

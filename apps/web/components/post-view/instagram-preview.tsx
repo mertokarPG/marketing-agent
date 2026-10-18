@@ -49,26 +49,3 @@ export function InstagramPreview({ handle, logoUrl, slides, current, onSelect, t
     </div>
   );
 }
-
-/** Read-only contact sheet of every slide, numbered. Editing arrives with slide tools. */
-export function SlideSheet({ slides, current, onSelect }: { slides: (string | null)[]; current: number; onSelect: (i: number) => void }) {
-  if (!slides.length) return null;
-  return (
-    <div className="sheet">
-      <div className="pv-label"><span>All {slides.length === 1 ? "1 slide" : `${slides.length} slides, in order`}</span></div>
-      <ol className="slides">
-        {slides.map((src, i) => (
-          <li key={i}>
-            <button type="button" className={`slide${i === current ? " on" : ""}`} onClick={() => onSelect(i)} aria-label={`Slide ${i + 1}`} aria-current={i === current || undefined}>
-              {src ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={src} alt="" loading="lazy" />
-              ) : null}
-              <span className="wide">{String(i + 1).padStart(2, "0")}.</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-    </div>
-  );
-}

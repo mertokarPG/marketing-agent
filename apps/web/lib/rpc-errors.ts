@@ -12,7 +12,7 @@ const MESSAGES: Record<string, string> = {
   reworking: "The agent is already reworking this post. Give it a moment.",
   too_close: "Too close to posting time to rework. Edit it yourself or skip it.",
 };
-const FALLBACK = "Something went wrong. Please try again.";
+export const FALLBACK = "Something went wrong. Please try again.";
 
 export function rpcErrorMessage(err: { message?: string }): string {
   const m = /carepost:([a-z_]+)/.exec(err?.message ?? "");
