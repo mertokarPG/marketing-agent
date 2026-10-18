@@ -53,3 +53,23 @@ export async function loadRedoState(
   }
   return { reworks, redone, redoFailed };
 }
+
+/** Splits ids into chunks of `size` (the last one shorter). */
+export function chunkIds(ids: string[], size = 10): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Metric snapshots for these posts, newest first per chunk. PostgREST caps a response at 1000 rows and a post has
+ * many snapshots, so ask 10 posts at a time (assumes under ~100 snapshots per post; a daily measurement stays well
+ * below that). Throws on a query error.
+ */
+export async function loadPostMetrics<T>(supabase: SupabaseClient, brandId: string, postIds: string[], cols: string): Promise<T[]> {
+  const qs = await Promise.all(chunkIds(postIds).map((c) =>
+    supabase.from("post_metrics").select(cols).eq("brand_id", brandId).in("post_id", c).order("measured_at", { ascending: false }),
+  ));
+  for (const q of qs) if (q.error) throw new Error(`metrics query failed: ${q.error.message}`);
+  return qs.flatMap((q) => (q.data ?? []) as T[]);
+}

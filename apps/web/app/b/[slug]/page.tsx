@@ -6,7 +6,7 @@ import { NeedsYouCard } from "@/components/needs-you-card";
 import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
-import { loadRedoState, signThumbs } from "@/lib/post-tiles";
+import { loadPostMetrics, loadRedoState, signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "./brand-context";
 import { waitingPosts, homeLede, needsYouPosts, needsYouFirstLine, showsNeedsYou, postTitle, weekRangeLabel, resolveWeek, summarizeResults, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
 
@@ -47,11 +47,9 @@ export default async function BrandHome({ params, searchParams }: {
   const waiting = waitingPosts((waitQ.data ?? []) as Row[], now);
   const published = resQ.data ?? [];
 
-  const metricsQ = published.length
-    ? await supabase.from("post_metrics").select("post_id, reach, measured_at").eq("brand_id", brand.id).in("post_id", published.map((p) => p.id)).order("measured_at", { ascending: false })
-    : { data: [], error: null };
-  if (metricsQ.error) throw new Error(`metrics query failed: ${metricsQ.error.message}`);
-  const results = summarizeResults(published, metricsQ.data ?? [], now);
+  const metrics = await loadPostMetrics<{ post_id: string; reach: number | null; measured_at: string }>(
+    supabase, brand.id, published.map((p) => p.id), "post_id, reach, measured_at");
+  const results = summarizeResults(published, metrics, now);
 
   // Veils for posts being reworked and "New version · needs your OK" for untouched redos.
   const shownPosts = [...new Map([...weekPosts, ...waiting].map((p) => [p.id, p])).values()];

@@ -2,7 +2,7 @@ import { addDaysYmd, zonedTimeToUtc } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { currentWeekStart } from "@/lib/week";
 import { TrendLine } from "@/components/trend-line";
-import { signThumbs } from "@/lib/post-tiles";
+import { loadPostMetrics, signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "../brand-context";
 import { postTitle } from "../home-data";
 import { bestPosts, changePct, firstSentence, resultsEmptyText, weeklyReach, windowTotals, type MetricRow } from "./results-data";
@@ -33,16 +33,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
   if (insightQ.error) console.warn(`[results] insights query failed: ${insightQ.error.message}`);
   const posts = (postsQ.data ?? []) as PRow[];
 
-  // PostgREST caps a response at 1000 rows and a post has many snapshots, so ask in small chunks, newest first.
-  // 10 posts per chunk assumes under ~100 snapshots per post (a daily measurement stays well below that).
-  const ids = posts.map((p) => p.id);
-  const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10));
-  const metricQs = await Promise.all(chunks.map((c) =>
-    supabase.from("post_metrics").select("post_id, reach, saves, shares, measured_at").eq("brand_id", brand.id).in("post_id", c).order("measured_at", { ascending: false }),
-  ));
-  for (const q of metricQs) if (q.error) throw new Error(`metrics query failed: ${q.error.message}`);
-  const metrics = metricQs.flatMap((q) => (q.data ?? []) as MetricRow[]);
+  const metrics = await loadPostMetrics<MetricRow>(supabase, brand.id, posts.map((p) => p.id), "post_id, reach, saves, shares, measured_at");
 
   const hasResults = metrics.length > 0;
   if (publishedQ.error) console.warn(`[results] published count failed: ${publishedQ.error.message}`);
