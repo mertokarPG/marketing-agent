@@ -3,6 +3,7 @@
 -- owner/editor of that post's brand and that the post is editable, and raises 'carepost:<code>'.
 -- Codes: not_allowed, not_found, not_editable, reworking, in_past, needs_new_time, caption_too_long,
 -- invalid_media, redo_limit, too_close, paused, invalid_input.
+-- Caption length is the published length: caption + '\n\n' + hashtags joined by ' ' (<= 2200).
 
 -- Internal: lock a post, check the caller's role and that the post is editable. Not callable by clients.
 create or replace function public._carepost_lock_post(p_post uuid) returns public.posts
@@ -24,6 +25,78 @@ begin
   if v_post.status = 'reworking' then raise exception 'carepost:reworking'; end if;
   if v_post.status not in ('pending_approval','approved') then raise exception 'carepost:not_editable'; end if;
   return v_post;
+end $$;
+
+-- Internal: the caption length Instagram receives (schedule-post publishes caption + "\n\n" + hashtags joined by spaces).
+create or replace function public._carepost_published_length(p_caption text, p_hashtags text[]) returns integer
+language sql immutable set search_path = public, pg_temp as $$
+  select char_length(coalesce(p_caption, ''))
+    + case when coalesce(cardinality(p_hashtags), 0) > 0
+           then 2 + char_length(array_to_string(p_hashtags, ' ')) else 0 end
+$$;
+
+-- Internal: raise carepost:invalid_media unless every item is a valid slide for this brand/post.
+-- p_strict = false (restoring a snapshot of this same post) only re-checks that every brand-assets
+-- item is still a product asset of the brand; the post-media items were already on this post.
+create or replace function public._carepost_check_media(p_brand uuid, p_post uuid, p_media jsonb, p_strict boolean)
+returns void
+language plpgsql stable security definer set search_path = public, pg_temp as $$
+declare
+  v_item jsonb;
+  v_path text;
+  v_bucket text;
+  v_prefix text := p_brand::text || '/' || p_post::text || '/';
+begin
+  if p_media is null or jsonb_typeof(p_media) <> 'array' then raise exception 'carepost:invalid_media'; end if;
+  if not p_strict then
+    if exists (
+      select 1 from jsonb_array_elements(p_media) e
+      where jsonb_typeof(e.value) = 'object' and e.value->>'bucket' = 'brand-assets'
+        and not exists (
+          select 1 from public.brand_assets a
+          where a.brand_id = p_brand and a.kind = 'product' and a.storage_path = e.value->>'storage_path')
+    ) then
+      raise exception 'carepost:invalid_media';
+    end if;
+    return;
+  end if;
+  if jsonb_array_length(p_media) < 1 or jsonb_array_length(p_media) > 10 then
+    raise exception 'carepost:invalid_media';
+  end if;
+  for v_item in select value from jsonb_array_elements(p_media) loop
+    if jsonb_typeof(v_item) <> 'object'
+       or exists (select 1 from jsonb_object_keys(v_item) k where k not in ('storage_path','bucket','width','height'))
+       or jsonb_typeof(v_item->'storage_path') is distinct from 'string'
+       or (v_item ? 'bucket' and jsonb_typeof(v_item->'bucket') not in ('string','null')) then
+      raise exception 'carepost:invalid_media';
+    end if;
+    -- width/height, when present, must be positive integers.
+    if (v_item ? 'width' and (jsonb_typeof(v_item->'width') <> 'number'
+          or (v_item->>'width')::numeric <= 0 or (v_item->>'width')::numeric <> trunc((v_item->>'width')::numeric)))
+       or (v_item ? 'height' and (jsonb_typeof(v_item->'height') <> 'number'
+          or (v_item->>'height')::numeric <= 0 or (v_item->>'height')::numeric <> trunc((v_item->>'height')::numeric))) then
+      raise exception 'carepost:invalid_media';
+    end if;
+    v_path := v_item->>'storage_path';
+    v_bucket := coalesce(v_item->>'bucket', 'post-media');
+    if v_path like '%..%' or v_path like '%\\%' or v_path like '/%' or v_path like '%//%' then
+      raise exception 'carepost:invalid_media';
+    end if;
+    if v_bucket = 'post-media' then
+      if left(v_path, char_length(v_prefix)) <> v_prefix or char_length(v_path) = char_length(v_prefix) then
+        raise exception 'carepost:invalid_media';
+      end if;
+    elsif v_bucket = 'brand-assets' then
+      if not exists (
+        select 1 from public.brand_assets a
+        where a.brand_id = p_brand and a.kind = 'product' and a.storage_path = v_path
+      ) then
+        raise exception 'carepost:invalid_media';
+      end if;
+    else
+      raise exception 'carepost:invalid_media';
+    end if;
+  end loop;
 end $$;
 
 create or replace function public.approve_post(p_post uuid) returns void
@@ -65,12 +138,13 @@ declare
 begin
   v_post := public._carepost_lock_post(p_post);
   if p_caption is null or btrim(p_caption) = '' then raise exception 'carepost:invalid_input'; end if;
-  if char_length(p_caption) > 2200 then raise exception 'carepost:caption_too_long'; end if;
-  if cardinality(v_tags) > 30
+  -- Hashtag cap 5 matches the agent's rule (Instagram's current limit).
+  if cardinality(v_tags) > 5
      or array_position(v_tags, null) is not null
      or exists (select 1 from unnest(v_tags) t where char_length(t) > 100 or btrim(t) = '') then
     raise exception 'carepost:invalid_input';
   end if;
+  if public._carepost_published_length(p_caption, v_tags) > 2200 then raise exception 'carepost:caption_too_long'; end if;
   update public.posts set caption = p_caption, hashtags = v_tags, last_changed_by = auth.uid(), last_changed_at = now()
   where id = v_post.id;
 end $$;
@@ -88,48 +162,10 @@ end $$;
 
 create or replace function public.update_post_media(p_post uuid, p_media jsonb) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
-declare
-  v_post public.posts;
-  v_item jsonb;
-  v_path text;
-  v_bucket text;
-  v_prefix text;
+declare v_post public.posts;
 begin
   v_post := public._carepost_lock_post(p_post);
-  if p_media is null or jsonb_typeof(p_media) <> 'array'
-     or jsonb_array_length(p_media) < 1 or jsonb_array_length(p_media) > 10 then
-    raise exception 'carepost:invalid_media';
-  end if;
-  v_prefix := v_post.brand_id::text || '/' || v_post.id::text || '/';
-  for v_item in select value from jsonb_array_elements(p_media) loop
-    if jsonb_typeof(v_item) <> 'object'
-       or exists (select 1 from jsonb_object_keys(v_item) k where k not in ('storage_path','bucket','width','height'))
-       or jsonb_typeof(v_item->'storage_path') is distinct from 'string'
-       or (v_item ? 'bucket' and jsonb_typeof(v_item->'bucket') not in ('string','null'))
-       or (v_item ? 'width' and jsonb_typeof(v_item->'width') <> 'number')
-       or (v_item ? 'height' and jsonb_typeof(v_item->'height') <> 'number') then
-      raise exception 'carepost:invalid_media';
-    end if;
-    v_path := v_item->>'storage_path';
-    v_bucket := coalesce(v_item->>'bucket', 'post-media');
-    if v_path like '%..%' or v_path like '%\\%' or v_path like '/%' or v_path like '%//%' then
-      raise exception 'carepost:invalid_media';
-    end if;
-    if v_bucket = 'post-media' then
-      if left(v_path, char_length(v_prefix)) <> v_prefix or char_length(v_path) = char_length(v_prefix) then
-        raise exception 'carepost:invalid_media';
-      end if;
-    elsif v_bucket = 'brand-assets' then
-      if not exists (
-        select 1 from public.brand_assets a
-        where a.brand_id = v_post.brand_id and a.kind = 'product' and a.storage_path = v_path
-      ) then
-        raise exception 'carepost:invalid_media';
-      end if;
-    else
-      raise exception 'carepost:invalid_media';
-    end if;
-  end loop;
+  perform public._carepost_check_media(v_post.brand_id, v_post.id, p_media, true);
   update public.posts set media = p_media, last_changed_by = auth.uid(), last_changed_at = now()
   where id = v_post.id;
 end $$;
@@ -178,6 +214,11 @@ begin
   if not found then raise exception 'carepost:not_found'; end if;
   -- The post (and so the brand whose membership is checked) is derived from the version row.
   v_post := public._carepost_lock_post(v_version.post_id);
+  -- Re-validate what is copied back: published caption length, and product photos still owned by the brand.
+  if public._carepost_published_length(v_version.caption, v_version.hashtags) > 2200 then
+    raise exception 'carepost:caption_too_long';
+  end if;
+  perform public._carepost_check_media(v_post.brand_id, v_post.id, v_version.media, false);
 
   insert into public.post_versions (post_id, brand_id, caption, hashtags, media, planned_at, reason, created_by)
   values (v_post.id, v_post.brand_id, v_post.caption, v_post.hashtags, v_post.media, v_post.planned_at, 'restore', auth.uid());
@@ -195,6 +236,8 @@ begin
 end $$;
 
 revoke all on function public._carepost_lock_post(uuid) from public, anon, authenticated;
+revoke all on function public._carepost_published_length(text, text[]) from public, anon, authenticated;
+revoke all on function public._carepost_check_media(uuid, uuid, jsonb, boolean) from public, anon, authenticated;
 
 do $$
 declare f text;

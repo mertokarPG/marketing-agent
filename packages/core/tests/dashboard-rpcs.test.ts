@@ -138,6 +138,27 @@ describe("dashboard RPCs", () => {
       .rejects.toThrow(/carepost:invalid_input/);
   });
 
+  it("caption plus hashtags over 2200 is refused", async () => {
+    const id = await post(brandA);
+    const tag = "#" + "a".repeat(19); // 20 chars
+    // 2190 + 2 ("\n\n") + 20 = 2212
+    await expect(call(owner, "select update_post_caption($1, $2, $3)", [id, "x".repeat(2190), [tag]]))
+      .rejects.toThrow(/carepost:caption_too_long/);
+    // exactly 2200: 2178 + 2 + 20
+    await call(owner, "select update_post_caption($1, $2, $3)", [id, "x".repeat(2178), [tag]]);
+    // two tags: 2157 + 2 + 20 + 1 + 20 = 2200
+    await call(owner, "select update_post_caption($1, $2, $3)", [id, "x".repeat(2157), [tag, tag]]);
+    await expect(call(owner, "select update_post_caption($1, $2, $3)", [id, "x".repeat(2158), [tag, tag]]))
+      .rejects.toThrow(/carepost:caption_too_long/);
+  });
+
+  it("more than 5 hashtags is refused", async () => {
+    const id = await post(brandA);
+    await call(owner, "select update_post_caption($1, $2, $3)", [id, "c", ["#1", "#2", "#3", "#4", "#5"]]);
+    await expect(call(owner, "select update_post_caption($1, $2, $3)", [id, "c", ["#1", "#2", "#3", "#4", "#5", "#6"]]))
+      .rejects.toThrow(/carepost:invalid_input/);
+  });
+
   it("viewer cannot edit a caption", async () => {
     const id = await post(brandA);
     await expect(call(viewer, "select update_post_caption($1, $2, $3)", [id, "hi", []]))
@@ -178,6 +199,10 @@ describe("dashboard RPCs", () => {
         [{ storage_path: `${brandB}/products/b.png`, bucket: "brand-assets" }],
         [{ storage_path: productPath, bucket: "other-bucket" }],
         [{ storage_path: productPath }],
+        [{ storage_path: `${brandA}/${id}/1.png`, width: 0 }],
+        [{ storage_path: `${brandA}/${id}/1.png`, width: -1080 }],
+        [{ storage_path: `${brandA}/${id}/1.png`, height: 1350.5 }],
+        [{ storage_path: `${brandA}/${id}/1.png`, height: "1350" }],
         [{ path: `${brandA}/${id}/1.png` }],
         [],
         Array.from({ length: 11 }, (_, i) => ({ storage_path: `${brandA}/${id}/${i}.png` })),
@@ -291,8 +316,8 @@ describe("dashboard RPCs", () => {
 
   describe("restore_post_version", () => {
     it("swaps in the old version and snapshots the current one", async () => {
-      const media = [{ storage_path: `${brandA}/PLACEHOLDER/1.png` }];
       const id = await post(brandA, { status: "approved" });
+      const media = [{ storage_path: `${brandA}/${id}/1.png` }];
       const oldPlanned = new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString();
       const [v] = await db.query<{ id: string }>(
         `insert into post_versions (post_id, brand_id, caption, hashtags, media, planned_at, reason, feedback)
@@ -309,6 +334,29 @@ describe("dashboard RPCs", () => {
       const snaps = await db.query<{ caption: string; created_by: string }>(
         "select caption, created_by from post_versions where post_id = $1 and reason = 'restore'", [id]);
       expect(snaps).toEqual([{ caption: "original caption", created_by: editor }]);
+    });
+
+    it("restore refuses a version whose product photo was deleted", async () => {
+      const id = await post(brandA);
+      const productPath = `${brandA}/products/rose.png`;
+      await db.query("insert into brand_assets (brand_id, kind, storage_path) values ($1,'product',$2)", [brandA, productPath]);
+      const media = [{ storage_path: `${brandA}/${id}/1.png` }, { storage_path: productPath, bucket: "brand-assets" }];
+      const [v] = await db.query<{ id: string }>(
+        `insert into post_versions (post_id, brand_id, caption, hashtags, media, planned_at, reason)
+         values ($1,$2,'old','{}',$3::jsonb, now() + interval '1 day','redo') returning id`, [id, brandA, JSON.stringify(media)]);
+      await db.query("delete from brand_assets where storage_path = $1", [productPath]);
+      await expect(call(owner, "select restore_post_version($1)", [v.id])).rejects.toThrow(/carepost:invalid_media/);
+      expect((await getPost(id)).caption).toBe("original caption");
+      expect(await db.query("select 1 from post_versions where post_id = $1 and reason = 'restore'", [id])).toHaveLength(0);
+    });
+
+    it("restore refuses a version whose published caption is too long", async () => {
+      const id = await post(brandA);
+      const [v] = await db.query<{ id: string }>(
+        `insert into post_versions (post_id, brand_id, caption, hashtags, media, planned_at, reason)
+         values ($1,$2,$3,'{"#aaaaaaaaaaaaaaaaaaa"}','[]', now() + interval '1 day','redo') returning id`,
+        [id, brandA, "x".repeat(2190)]);
+      await expect(call(owner, "select restore_post_version($1)", [v.id])).rejects.toThrow(/carepost:caption_too_long/);
     });
 
     it("refuses viewers, strangers, other brands, unknown versions and reworking posts", async () => {
@@ -331,16 +379,30 @@ describe("dashboard RPCs", () => {
     });
   });
 
-  it("anon cannot execute the RPCs", async () => {
+  it("anon cannot execute any of the RPCs", async () => {
     const id = await post(brandA);
+    const rpcs: [string, unknown[]][] = [
+      ["select approve_post($1)", [id]],
+      ["select unapprove_post($1)", [id]],
+      ["select skip_post($1)", [id]],
+      ["select update_post_caption($1, 'c', '{}')", [id]],
+      ["select reschedule_post($1, now() + interval '1 day')", [id]],
+      ["select update_post_media($1, '[]'::jsonb)", [id]],
+      ["select request_post_redo($1, 'x')", [id]],
+      ["select restore_post_version($1)", [id]],
+    ];
     await pg.query("set role anon");
     try {
-      await expect(db.query("select approve_post($1)", [id])).rejects.toThrow(/permission denied/);
+      for (const [sql, params] of rpcs) await expect(db.query(sql, params), sql).rejects.toThrow(/permission denied/);
     } finally { await pg.query("reset role"); }
   });
 
-  it("the internal lock helper is not callable by authenticated", async () => {
+  it("the internal helpers are not callable by authenticated", async () => {
     const id = await post(brandA);
-    await expect(call(owner, "select _carepost_lock_post($1)", [id])).rejects.toThrow(/permission denied/);
+    for (const sql of [
+      "select _carepost_lock_post($1)",
+      "select _carepost_published_length('c', '{}'), $1::uuid",
+      "select _carepost_check_media($1, $1, '[]'::jsonb, true)",
+    ]) await expect(call(owner, sql, [id]), sql).rejects.toThrow(/permission denied/);
   });
 });
