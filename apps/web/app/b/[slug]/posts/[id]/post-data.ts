@@ -29,7 +29,12 @@ export function parseCaption(text: string): { caption: string; hashtags: string[
 }
 
 function normTags(hashtags: string[]): string[] {
-  return hashtags.map((h) => h.trim()).filter(Boolean).map((h) => (h.startsWith("#") ? h : `#${h}`));
+  return hashtags.map((h) => h.trim()).filter((h) => h && h !== "#").map((h) => (h.startsWith("#") ? h : `#${h}`));
+}
+
+/** The hashtags field (one line, space or comma separated) -> the stored hashtags. */
+export function parseTags(line: string): string[] {
+  return normTags(line.split(/[\s,]+/));
 }
 
 /** caption + hashtags -> editor text, laid out exactly as it is published. */

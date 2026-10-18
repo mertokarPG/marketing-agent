@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { approve, unapprove, skip, type ActionResult } from "@/app/b/[slug]/posts/[id]/actions";
 import type { PostActionsView } from "@/app/b/[slug]/posts/[id]/post-data";
 
@@ -28,6 +28,18 @@ export function PostActions({ slug, postId, view, flush, onAfter }: {
       onAfter(what);
     });
   };
+  // Esc while the skip question is open answers "Cancel" instead of closing the post.
+  useEffect(() => {
+    if (!confirming) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setConfirming(false);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [confirming]);
+
   const later = (what: After) => run(what, async () => ({ ok: true }));
 
   if (view.kind === "none") return null;

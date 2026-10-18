@@ -55,5 +55,6 @@ export async function reschedule(slug: string, postId: string, localYmd: string,
   const { data: brand, error: bErr } = await supabase.from("brands").select("timezone").eq("id", post.brand_id).maybeSingle();
   if (bErr || !brand) return { ok: false, message: rpcErrorMessage({ message: "carepost:not_found" }) };
   const at = zonedTimeToUtc(localYmd, localHhmm, brand.timezone);
+  if (at.getTime() <= Date.now()) return { ok: false, message: rpcErrorMessage({ message: "carepost:in_past" }) };
   return call(slug, "reschedule_post", { p_post: postId, p_planned_at: at.toISOString() });
 }

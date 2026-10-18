@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseCaption, joinCaption, publishedLength, captionLimit, captionProblem, stepNav, postActions,
+  parseCaption, joinCaption, parseTags, publishedLength, captionLimit, captionProblem, stepNav, postActions,
   goesOutLabel, formatChip, previewCaption, lastChangedText, validLocalTime, isPastLocal, latestMetrics,
 } from "./post-data";
 
@@ -37,6 +37,20 @@ describe("parseCaption / joinCaption", () => {
     const c = "Line one\nLine two #inline";
     const h = ["#x", "#y"];
     expect(parseCaption(joinCaption(c, h))).toEqual({ caption: c, hashtags: h });
+  });
+});
+
+describe("parseTags (the separate hashtags field)", () => {
+  it("splits on spaces or commas and adds a missing #", () => {
+    expect(parseTags("#a b  ,#c")).toEqual(["#a", "#b", "#c"]);
+  });
+  it("empty and lone # give no tags", () => {
+    expect(parseTags("")).toEqual([]);
+    expect(parseTags("  # ")).toEqual([]);
+  });
+  it("a stored caption is never re-split: its own hashtag lines stay in the caption", () => {
+    // The editor keeps caption and hashtags as stored; only the hashtags field is parsed.
+    expect(parseTags(["#x", "#y"].join(" "))).toEqual(["#x", "#y"]);
   });
 });
 

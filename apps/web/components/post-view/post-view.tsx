@@ -36,15 +36,18 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
     else router.push(`/b/${slug}`);
   }, [flush, router, slug, variant]);
 
-  const go = useCallback((id: string) => {
-    void flush();
-    router.replace(`/b/${slug}/posts/${id}?review=1`, { scroll: false });
-  }, [flush, router, slug]);
+  const go = useCallback(async (id: string) => {
+    if (!(await flush())) return; // the caption's problem is shown; don't leave it unsaved
+    const href = `/b/${slug}/posts/${id}?review=1`;
+    // The full page steps with a real load: a soft navigation would be intercepted into an overlay.
+    if (variant === "page") window.location.replace(href);
+    else router.replace(href, { scroll: false });
+  }, [flush, router, slug, variant]);
 
   const onAfter = useCallback((what: After) => {
     if (what === "undone") return;
     if (what === "approved" && !nav) return; // stays open, now showing "Approved ✓"
-    if (nav?.next && what !== "keep") go(nav.next);
+    if (nav?.next && what !== "keep") void go(nav.next);
     else close();
   }, [close, go, nav]);
 
@@ -58,7 +61,7 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
         const fwd = e.key === "ArrowRight";
         if (nav) {
           const to = fwd ? nav.next : nav.prev;
-          if (to) { e.preventDefault(); go(to); }
+          if (to) { e.preventDefault(); void go(to); }
         } else if (slideCount > 1) {
           e.preventDefault();
           setSlide((s) => Math.min(slideCount - 1, Math.max(0, s + (fwd ? 1 : -1))));
@@ -109,9 +112,9 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
         <div className="pv-top-end">
           {nav && (
             <span className="pv-step">
-              <button type="button" className="linkish" aria-label="Previous post" disabled={!nav.prev} onClick={() => nav.prev && go(nav.prev)}>‹</button>
+              <button type="button" className="linkish" aria-label="Previous post" disabled={!nav.prev} onClick={() => { if (nav.prev) void go(nav.prev); }}>‹</button>
               <span>{nav.index + 1} of {nav.total}</span>
-              <button type="button" className="linkish" aria-label="Next post" disabled={!nav.next} onClick={() => nav.next && go(nav.next)}>›</button>
+              <button type="button" className="linkish" aria-label="Next post" disabled={!nav.next} onClick={() => { if (nav.next) void go(nav.next); }}>›</button>
             </span>
           )}
           <button type="button" className="linkish pv-close" onClick={close}>Close ✕</button>

@@ -255,6 +255,7 @@ input, textarea, select {
 .time-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .time-row input { padding: 8px 12px; }
 textarea.caption { width: 100%; min-height: 150px; resize: vertical; font-size: 15px; line-height: 1.5; border: 1px solid var(--rest-border); border-radius: 8px; padding: 14px 16px; }
+.tags-in { width: 100%; margin-top: 8px; padding: 8px 14px; border: 1px solid var(--rest-border); border-radius: 8px; color: var(--lav); font-size: 13px; }
 .caption.ro { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px 16px; font-size: 15px; }
 .caption.ro p { margin: 0; white-space: pre-wrap; }
 .caption .tags { margin-top: 8px; color: var(--lav); font-size: 13px; }
