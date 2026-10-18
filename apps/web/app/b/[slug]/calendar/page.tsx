@@ -2,7 +2,6 @@ import Link from "next/link";
 import { addDaysYmd, localParts, zonedTimeToUtc } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { buildMonth } from "@/lib/week";
-import { Ribbon } from "@/components/ribbon";
 import { PostTile, type TilePost } from "@/components/post-tile";
 import { loadRedoState, signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "../brand-context";
@@ -41,8 +40,7 @@ export default async function CalendarPage({ params, searchParams }: {
   const monthHasPosts = days.some((d) => inMonth(d.ymd) && d.posts.length > 0);
 
   return (
-    <div className="page">
-      <Ribbon />
+    <div>
       <div className="section-t">
         <h1 className="t wide">{monthLabel(ym).split(" ")[0]} <b>{monthLabel(ym).split(" ")[1]}</b></h1>
         <span className="week-nav">

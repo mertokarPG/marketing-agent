@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { Ribbon } from "@/components/ribbon";
 import { loadBrand } from "../brand-context";
 import { postingDaysText, approvalText, timezoneText } from "./brand-text";
 
@@ -16,8 +15,7 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
     ["Approval", approvalText(brand.approval_mode)],
   ];
   return (
-    <div className="page">
-      <Ribbon />
+    <div>
       <h1 className="hero wide">Your <b>brand.</b></h1>
       <div className="brand-head">
         {brand.logoUrl && (

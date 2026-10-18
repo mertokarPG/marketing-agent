@@ -1,7 +1,6 @@
 import { addDaysYmd, zonedTimeToUtc } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { currentWeekStart } from "@/lib/week";
-import { Ribbon } from "@/components/ribbon";
 import { TrendLine } from "@/components/trend-line";
 import { signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "../brand-context";
@@ -55,8 +54,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
   const n = (v: number) => v.toLocaleString("en-GB");
 
   return (
-    <div className="page">
-      <Ribbon />
+    <div>
       <h1 className="hero wide">Your <b>results.</b></h1>
       {!hasResults ? (
         <p className="lede">Your results appear here once your first posts go out.</p>

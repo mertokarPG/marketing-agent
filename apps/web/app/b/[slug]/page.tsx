@@ -2,7 +2,6 @@ import { addDaysYmd, zonedTimeToUtc } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { buildWeek, currentWeekStart } from "@/lib/week";
 import { greeting, firstNameFromEmail } from "@/lib/greeting";
-import { Ribbon } from "@/components/ribbon";
 import { NeedsYouCard } from "@/components/needs-you-card";
 import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
@@ -64,8 +63,7 @@ export default async function BrandHome({ params, searchParams }: {
   const bestTitle = results.best ? postTitle(results.best.caption) : null;
 
   return (
-    <div className="page">
-      <Ribbon />
+    <div>
       <h1 className="hero wide">{greeting(now, tz, name)}, <b>{name.toUpperCase()}.</b></h1>
       <p className="lede">{homeLede(brand, waiting.length, weekHasPosts)}</p>
 
