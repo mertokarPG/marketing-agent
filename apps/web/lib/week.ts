@@ -1,4 +1,4 @@
-import { addDaysYmd, localParts } from "@carepost/core";
+import { addDaysYmd, localParts } from "@carepost/core/time";
 
 type P = { id: string; planned_at: string };
 export type Day<T extends P> = { ymd: string; weekday: string; dayNum: number; posts: T[] };

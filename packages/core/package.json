@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./time": { "types": "./src/time.ts", "default": "./src/time.ts" },
     "./testing": { "types": "./src/testing.ts", "default": "./src/testing.ts" }
   },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit -p ." },

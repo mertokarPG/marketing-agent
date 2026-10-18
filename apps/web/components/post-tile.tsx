@@ -1,0 +1,28 @@
+import Link from "next/link";
+import { postLabel } from "@/lib/labels";
+import { postTitle } from "@/app/b/[slug]/home-data";
+
+export type TilePost = { id: string; status: string; planned_at: string; needs_new_time: boolean; caption: string | null };
+
+export function PostTile({ post, href, thumb, brand, now }: {
+  post: TilePost;
+  href: string;
+  thumb: string | null;
+  brand: { publisher: string | null; approval_mode: string };
+  now: Date;
+}) {
+  const label = postLabel(post, brand, now);
+  return (
+    <div className="post-tile">
+      <Link href={href} className="tile" aria-label={`Open post: ${postTitle(post.caption)}`}>
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={thumb} alt="" loading="lazy" />
+        ) : (
+          <span className="tile-ph wide">{postTitle(post.caption, 6)}</span>
+        )}
+      </Link>
+      <span className={`tag${label.tone === "needs" ? " needs" : ""}`}>{label.text}</span>
+    </div>
+  );
+}
