@@ -208,6 +208,26 @@ Imported rows have status `published`, so they can never be republished, and the
   ```
 - [ ] After a week of correct posts, remove the `demo` brand if you do not want it listed.
 
+## 9. Dashboard rollout
+
+The dashboard (home, post view with approve / edit / redo, calendar, results, brand page) needs two migrations and a worker that understands revise runs. Order matters: **worker before web**, so every "Redo" a user sends has a consumer.
+
+- [x] **Migrations** `20261018120000_dashboard_schema.sql` (reworking status, revise runs, post versions, brand insights) and `20261018120100_dashboard_rpcs.sql` (role-checked write RPCs). **Already applied to the Carepost Supabase project on 2026-10-18.** For any other environment:
+  ```bash
+  supabase db push --dry-run   # expect exactly these two files
+  supabase db push
+  ```
+- [ ] **Deploy the worker first** (Railway, step 6; same variables, nothing new). Verify the log shows `[worker] started` and no env errors. The new worker claims `revise` runs, sweeps redos left on paused brands or orphaned posts, and writes weekly learnings.
+- [ ] **Then deploy the web app** (Vercel, step 2; same variables). Smoke check signed in as the owner: home, a post view, calendar, results and brand page load in dark and light, and on a phone width nothing scrolls sideways.
+- [ ] Note: a redo on a **paused** brand is never claimed by the worker loop. After 10 minutes the worker cancels it and puts the post back to its previous version (the post view says the redo did not go through). Test redo on an active brand, or process that one run by hand with `claimRunById` + `executeRun`.
+- [ ] **Re-attach surviving legacy carephoto images** to the imported posts (so history shows photos instead of "No image"). Dry run first, check the list, then run it for real only after you confirm:
+  ```bash
+  cd apps/worker
+  npm run attach-legacy-images -- carephoto --dry-run   # 2026-10-18: 26 planned uploads of 63 imported posts without media
+  npm run attach-legacy-images -- carephoto             # awaiting owner confirmation
+  ```
+  Idempotent: it only touches imported posts whose `media` is still empty.
+
 ## Known follow-ups
 
 - **carephoto Agent API (lula PR)** must be deployed for `generate_image` / `referenceImages` to work; until then the Agent API only exists on the local carephoto dev server and prod `carephoto.art` has no `/api/v1/agent/*`. Image generation in worker runs will fail or be skipped until it ships. Set `CAREPHOTO_BASE_URL` accordingly.
