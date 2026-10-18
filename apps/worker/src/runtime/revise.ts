@@ -60,8 +60,7 @@ export async function assertRevised(db: Db, revisionId: string): Promise<void> {
  *  If this fails, sweepStuckRevisions retries the restore on a later tick. */
 export async function failRevision(db: Db, revisionId: string, error: string): Promise<void> {
   try {
-    await restoreAfterFailedRevision(db, revisionId);
-    await markRevision(db, revisionId, "failed", error);
+    await restoreAfterFailedRevision(db, revisionId, error);
   } catch (e) {
     console.warn(`[revision ${revisionId}] restore after failure failed: ${e instanceof Error ? e.message : String(e)}`);
   }

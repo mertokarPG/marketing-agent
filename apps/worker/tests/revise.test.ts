@@ -154,6 +154,29 @@ describe("revise runs", () => {
     expect((await getRevision(db, rev))!.status).toBe("failed");
   });
 
+  it("the failure restore and the failed mark land in one statement", async () => {
+    const { restoreAfterFailedRevision } = await import("@carepost/core");
+    const id = await post({ status: "approved" });
+    const rev = await redo(id);
+    await restoreAfterFailedRevision(db, rev, "boom");
+    const p = await getPost(id);
+    const r = (await getRevision(db, rev))!;
+    expect(p).toMatchObject({ status: "approved", caption: "original caption" });
+    expect(r).toMatchObject({ status: "failed", error: "boom" });
+    // Same statement, same now(): the dashboard's "post unchanged since the failure" check relies on this.
+    expect(new Date(r.finished_at!).getTime()).toBe(new Date(p.last_changed_at).getTime());
+  });
+
+  it("the sweep marks a running revision failed when its run failed, whatever the post's status", async () => {
+    const id = await post({ status: "approved" });
+    const rev = await redo(id);
+    await db.query("update post_revisions set status = 'running' where id = $1", [rev]);
+    await db.query("update agent_runs set status = 'failed', error = 'boom' where period_key = $1", [rev]);
+    await db.query("update posts set status = 'approved' where id = $1", [id]);
+    expect(await runLoopTick(deps)).toBe(false);
+    expect((await getRevision(db, rev))!).toMatchObject({ status: "failed", error: "boom" });
+  });
+
   it("revise runs are claimed before weekly plans", async () => {
     await enqueueRun(db, brandId, "weekly_plan", "2026-W43");
     const id = await post();

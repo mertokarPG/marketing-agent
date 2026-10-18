@@ -26,26 +26,29 @@ export async function markRevision(
 
 /**
  * Puts the post back the way it was before the redo (the revision's snapshot, and its prior status) and marks the
- * revision failed. Safe to call more than once: it only touches a post that is still reworking for this revision
- * (not one reworking for a newer revision), and never undoes a revision that finished. A post whose time has passed
- * or is within 15 minutes comes back as needs-your-OK with needs_new_time, like a late successful redo, so the
- * version the user asked to change is never published late nor silently expired.
+ * revision failed (with `error` when given), in one statement so neither lands without the other and the post's
+ * last_changed_at equals the revision's finished_at. Safe to call more than once: it only touches a post that is
+ * still reworking for this revision (not one reworking for a newer revision), and never undoes a revision that
+ * finished. A post whose time has passed or is within 15 minutes comes back as needs-your-OK with needs_new_time,
+ * like a late successful redo, so the version the user asked to change is never published late nor silently expired.
  */
-export async function restoreAfterFailedRevision(db: Db, revisionId: string): Promise<void> {
+export async function restoreAfterFailedRevision(db: Db, revisionId: string, error?: string): Promise<void> {
   await db.query(
-    `update posts p set caption = v.caption, hashtags = v.hashtags, media = v.media,
-       status = case when p.planned_at <= now() + interval '15 minutes' then 'pending_approval' else r.prior_status end,
-       needs_new_time = p.needs_new_time or p.planned_at <= now() + interval '15 minutes',
-       last_changed_by = null, last_changed_at = now()
-     from post_revisions r join post_versions v on v.id = r.version_id
-     where r.id = $1 and r.status <> 'done' and p.id = r.post_id and p.status = 'reworking'
-       and not exists (select 1 from post_revisions newer
-                       where newer.post_id = r.post_id and newer.created_at > r.created_at)`,
-    [revisionId]);
-  await db.query(
-    `update post_revisions set status = 'failed', error = coalesce(error, 'revision failed'), finished_at = coalesce(finished_at, now())
-     where id = $1 and status in ('queued','running')`,
-    [revisionId]);
+    `with restored as (
+       update posts p set caption = v.caption, hashtags = v.hashtags, media = v.media,
+         status = case when p.planned_at <= now() + interval '15 minutes' then 'pending_approval' else r.prior_status end,
+         needs_new_time = p.needs_new_time or p.planned_at <= now() + interval '15 minutes',
+         last_changed_by = null, last_changed_at = now()
+       from post_revisions r join post_versions v on v.id = r.version_id
+       where r.id = $1 and r.status <> 'done' and p.id = r.post_id and p.status = 'reworking'
+         and not exists (select 1 from post_revisions newer
+                         where newer.post_id = r.post_id and newer.created_at > r.created_at)
+       returning p.id
+     )
+     update post_revisions set status = 'failed', error = coalesce($2::text, error, 'revision failed'),
+       finished_at = coalesce(finished_at, now())
+     where id = $1 and (status in ('queued','running') or (status = 'failed' and $2::text is not null))`,
+    [revisionId, error ?? null]);
 }
 
 /**
@@ -53,7 +56,8 @@ export async function restoreAfterFailedRevision(db: Db, revisionId: string): Pr
  * - the revise run is queued for a paused brand (never claimed) and the revision is older than `olderThanMinutes`
  *   (including one re-queued between attempts, whose revision is already running): the run is failed and the post
  *   restored;
- * - the revise run already failed but the restore did not land (e.g. a transient DB error): the post is restored.
+ * - the revise run already failed but the restore did not land (e.g. a transient DB error): the post is restored if
+ *   it is still reworking, and the revision is marked failed whatever the post's status.
  * Returns the number of revisions restored.
  */
 export async function sweepStuckRevisions(db: Db, olderThanMinutes = 10): Promise<number> {
@@ -66,17 +70,14 @@ export async function sweepStuckRevisions(db: Db, olderThanMinutes = 10): Promis
      returning ar.period_key`,
     [olderThanMinutes]);
   for (const r of paused) {
-    await restoreAfterFailedRevision(db, r.period_key);
-    await markRevision(db, r.period_key, "failed", "brand paused; redo cancelled");
+    await restoreAfterFailedRevision(db, r.period_key, "brand paused; redo cancelled");
   }
   const orphaned = await db.query<{ id: string; error: string | null }>(
     `select r.id, ar.error from post_revisions r
        join agent_runs ar on ar.kind = 'revise' and ar.period_key = r.id::text and ar.brand_id = r.brand_id
-       join posts p on p.id = r.post_id
-     where r.status in ('queued','running') and ar.status = 'failed' and p.status = 'reworking'`);
+     where r.status in ('queued','running') and ar.status = 'failed'`);
   for (const r of orphaned) {
-    await restoreAfterFailedRevision(db, r.id);
-    await markRevision(db, r.id, "failed", r.error ?? "revision failed");
+    await restoreAfterFailedRevision(db, r.id, r.error ?? "revision failed");
   }
   return paused.length + orphaned.length;
 }
