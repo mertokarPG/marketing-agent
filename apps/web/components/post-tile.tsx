@@ -4,7 +4,7 @@ import { postTitle } from "@/app/b/[slug]/home-data";
 
 export type TilePost = { id: string; status: string; planned_at: string; needs_new_time: boolean; caption: string | null };
 
-export function PostTile({ post, href, thumb, brand, now, rework, redone = false }: {
+export function PostTile({ post, href, thumb, brand, now, rework, redone = false, redoFailed = false }: {
   post: TilePost;
   href: string;
   thumb: string | null;
@@ -14,8 +14,10 @@ export function PostTile({ post, href, thumb, brand, now, rework, redone = false
   rework?: string | null;
   /** The agent's redo came back untouched: "New version · needs your OK". */
   redone?: boolean;
+  /** The agent's redo failed and nobody has touched the post since: "Redo didn't work · needs your OK". */
+  redoFailed?: boolean;
 }) {
-  const label = postLabel(post, brand, now, { redone });
+  const label = postLabel(post, brand, now, { redone, redoFailed });
   const reworking = post.status === "reworking";
   return (
     <div className="post-tile">

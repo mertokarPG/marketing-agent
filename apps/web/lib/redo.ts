@@ -42,15 +42,29 @@ export function redoAvailability(
 export type Revision = { status: string; feedback: string | null; created_at: string; finished_at: string | null };
 export type RevisionState = { kind: "reworking"; feedback: string | null } | { kind: "failed" } | { kind: "none" };
 
-/** What to say about the latest redo: in progress (with its feedback), failed since the page loaded, or nothing. */
-export function latestRevisionState(status: string, revisions: Revision[], loadedAt: string): RevisionState {
-  const latest = [...revisions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+/** What to say about the latest redo: in progress (with its feedback), failed with the post unchanged since, or nothing. */
+export function latestRevisionState(post: { status: string; last_changed_at: string | null }, revisions: Revision[]): RevisionState {
   // The redo row is written in the same transaction that sets 'reworking', so the latest one is it.
-  if (status === "reworking") return { kind: "reworking", feedback: latest?.feedback ?? null };
-  if (latest?.status === "failed" && new Date(latest.finished_at ?? latest.created_at).getTime() > new Date(loadedAt).getTime()) {
-    return { kind: "failed" };
-  }
-  return { kind: "none" };
+  if (post.status === "reworking") return { kind: "reworking", feedback: latestOf(revisions)?.feedback ?? null };
+  return isRedoFailed(post, revisions) ? { kind: "failed" } : { kind: "none" };
+}
+
+function latestOf(revisions: Revision[]): Revision | undefined {
+  return [...revisions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+}
+
+/**
+ * The agent's latest redo failed and nobody has changed the post since: the worker restores the post (setting its
+ * last_changed_at) and fails the redo (setting finished_at) in one statement, so both carry the same time, and any
+ * later edit moves last_changed_at on. Only for posts still waiting or approved.
+ */
+export function isRedoFailed(post: { status: string; last_changed_at: string | null }, revisions: Revision[]): boolean {
+  if (post.status !== "pending_approval" && post.status !== "approved") return false;
+  const latest = latestOf(revisions);
+  if (!latest || latest.status !== "failed") return false;
+  if (!post.last_changed_at) return true;
+  const finished = new Date(latest.finished_at ?? latest.created_at).getTime();
+  return finished >= new Date(post.last_changed_at).getTime();
 }
 
 /**
@@ -59,7 +73,7 @@ export function latestRevisionState(status: string, revisions: Revision[], loade
  */
 export function isRedone(post: { status: string; last_changed_at: string | null }, revisions: Revision[]): boolean {
   if (post.status !== "pending_approval") return false;
-  const latest = [...revisions].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const latest = latestOf(revisions);
   if (!latest || latest.status !== "done" || !latest.finished_at) return false;
   if (!post.last_changed_at) return true;
   return new Date(latest.finished_at).getTime() >= new Date(post.last_changed_at).getTime();

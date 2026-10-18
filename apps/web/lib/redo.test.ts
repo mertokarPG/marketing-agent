@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isRedone, redoAvailability, latestRevisionState, reworkingText, reworkMinutes, versionLabel, REDO_MAX } from "./redo";
+import { isRedone, isRedoFailed, redoAvailability, latestRevisionState, reworkingText, reworkMinutes, versionLabel, REDO_MAX } from "./redo";
 
 const now = new Date("2026-10-18T12:00:00Z");
 const post = (over: Partial<{ status: string; planned_at: string; needs_new_time: boolean }> = {}) =>
@@ -42,29 +42,47 @@ describe("redoAvailability", () => {
 });
 
 describe("latestRevisionState", () => {
-  const loadedAt = "2026-10-18T12:00:00Z";
   const rev = (status: string, created_at: string, finished_at: string | null = null, feedback = "more playful") =>
     ({ status, created_at, finished_at, feedback });
+  const p = (status: string, last_changed_at: string | null) => ({ status, last_changed_at });
 
   it("shows the feedback of the redo in progress while reworking", () => {
     const revs = [rev("done", "2026-10-17T09:00:00Z", "2026-10-17T09:02:00Z", "old"), rev("running", "2026-10-18T11:59:00Z")];
-    expect(latestRevisionState("reworking", revs, loadedAt)).toEqual({ kind: "reworking", feedback: "more playful" });
+    expect(latestRevisionState(p("reworking", null), revs)).toEqual({ kind: "reworking", feedback: "more playful" });
   });
-  it("reports a failure that happened after the page loaded", () => {
-    expect(latestRevisionState("pending_approval", [rev("failed", "2026-10-18T11:59:00Z", "2026-10-18T12:03:00Z")], loadedAt))
-      .toEqual({ kind: "failed" });
+  it("reports a failed redo whenever the post hasn't changed since, even if it failed before the page loaded", () => {
+    // The worker restores the post and fails the redo in one statement: same timestamp.
+    const failed = rev("failed", "2026-10-18T10:00:00Z", "2026-10-18T10:02:00Z");
+    expect(latestRevisionState(p("pending_approval", "2026-10-18T10:02:00Z"), [failed])).toEqual({ kind: "failed" });
+    expect(latestRevisionState(p("approved", "2026-10-18T10:02:00Z"), [failed])).toEqual({ kind: "failed" });
+    expect(latestRevisionState(p("pending_approval", null), [failed])).toEqual({ kind: "failed" });
   });
-  it("stays quiet about an older failure, or when the latest redo worked", () => {
-    expect(latestRevisionState("pending_approval", [rev("failed", "2026-10-18T10:00:00Z", "2026-10-18T10:02:00Z")], loadedAt))
+  it("stays quiet once the post changed after the failure, or when the latest redo worked", () => {
+    expect(latestRevisionState(p("pending_approval", "2026-10-18T10:05:00Z"), [rev("failed", "2026-10-18T10:00:00Z", "2026-10-18T10:02:00Z")]))
       .toEqual({ kind: "none" });
-    expect(latestRevisionState("pending_approval", [
+    expect(latestRevisionState(p("pending_approval", "2026-10-18T12:07:00Z"), [
       rev("failed", "2026-10-18T12:01:00Z", "2026-10-18T12:02:00Z"),
       rev("done", "2026-10-18T12:05:00Z", "2026-10-18T12:07:00Z"),
-    ], loadedAt)).toEqual({ kind: "none" });
-    expect(latestRevisionState("pending_approval", [], loadedAt)).toEqual({ kind: "none" });
+    ])).toEqual({ kind: "none" });
+    expect(latestRevisionState(p("pending_approval", null), [])).toEqual({ kind: "none" });
+  });
+  it("stays quiet once the post went out or was skipped", () => {
+    const failed = rev("failed", "2026-10-18T10:00:00Z", "2026-10-18T10:02:00Z");
+    for (const status of ["published", "rejected", "expired"]) {
+      expect(latestRevisionState(p(status, "2026-10-18T10:02:00Z"), [failed])).toEqual({ kind: "none" });
+    }
   });
   it("still says reworking when the redo row isn't readable yet", () => {
-    expect(latestRevisionState("reworking", [], loadedAt)).toEqual({ kind: "reworking", feedback: null });
+    expect(latestRevisionState(p("reworking", null), [])).toEqual({ kind: "reworking", feedback: null });
+  });
+});
+
+describe("isRedoFailed", () => {
+  const failed = { status: "failed", created_at: "2026-10-18T10:00:00Z", finished_at: "2026-10-18T10:02:00Z", feedback: "x" };
+  it("is true while the failed redo is the latest thing that happened to a waiting post", () => {
+    expect(isRedoFailed({ status: "pending_approval", last_changed_at: "2026-10-18T10:02:00Z" }, [failed])).toBe(true);
+    expect(isRedoFailed({ status: "pending_approval", last_changed_at: "2026-10-18T10:03:00Z" }, [failed])).toBe(false);
+    expect(isRedoFailed({ status: "published", last_changed_at: null }, [failed])).toBe(false);
   });
 });
 

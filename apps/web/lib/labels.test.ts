@@ -5,8 +5,8 @@ const now = new Date("2026-10-19T12:00:00Z");
 const future = "2026-10-20T08:00:00Z";
 const past = "2026-10-18T08:00:00Z";
 type Brand = { publisher: string | null; approval_mode: string };
-const pub: Brand = { publisher: "postiz", approval_mode: "manual" };
-const nopub: Brand = { publisher: null, approval_mode: "manual" };
+const pub: Brand = { publisher: "postiz", approval_mode: "review" };
+const nopub: Brand = { publisher: null, approval_mode: "review" };
 
 const rows: [string, { status: string; planned_at: string; needs_new_time: boolean }, Brand, string, string][] = [
   ["pending", { status: "pending_approval", planned_at: future, needs_new_time: false }, pub, "Needs your OK", "needs"],
@@ -35,6 +35,11 @@ describe("postLabel after a redo", () => {
   });
   it("still asks for a new time first", () => {
     expect(postLabel({ ...pending, needs_new_time: true }, pub, now, { redone: true })).toEqual({ text: "Pick a new time", tone: "needs" });
+  });
+  it("hints that a redo didn't work while nobody has touched the post since", () => {
+    expect(postLabel(pending, pub, now, { redoFailed: true })).toEqual({ text: "Redo didn't work · needs your OK", tone: "needs" });
+    expect(postLabel({ ...pending, needs_new_time: true }, pub, now, { redoFailed: true })).toEqual({ text: "Pick a new time", tone: "needs" });
+    expect(postLabel({ ...pending, status: "approved" }, pub, now, { redoFailed: true })).toEqual({ text: "Scheduled", tone: "ok" });
   });
   it("ignores redone for other statuses and when not set", () => {
     expect(postLabel({ ...pending, status: "approved" }, pub, now, { redone: true })).toEqual({ text: "Scheduled", tone: "ok" });

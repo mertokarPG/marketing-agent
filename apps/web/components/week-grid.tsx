@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Day } from "@/lib/week";
 import { PostTile, type TilePost } from "./post-tile";
 
-export function WeekGrid({ days, slug, thumbs, brand, now, reworks = {}, redone = {} }: {
+export function WeekGrid({ days, slug, thumbs, brand, now, reworks = {}, redone = {}, redoFailed = {} }: {
   days: Day<TilePost>[];
   slug: string;
   thumbs: Record<string, string | null>;
@@ -12,6 +12,8 @@ export function WeekGrid({ days, slug, thumbs, brand, now, reworks = {}, redone 
   reworks?: Record<string, string>;
   /** Posts whose redo came back untouched, by post id. */
   redone?: Record<string, boolean>;
+  /** Posts whose redo failed with nothing changed since, by post id. */
+  redoFailed?: Record<string, boolean>;
 }) {
   return (
     <div className="week">
@@ -22,7 +24,7 @@ export function WeekGrid({ days, slug, thumbs, brand, now, reworks = {}, redone 
             {d.posts.length === 0 ? (
               <div className="rest">Rest day</div>
             ) : d.posts.map((p) => (
-              <PostTile key={p.id} post={p} href={`/b/${slug}/posts/${p.id}`} thumb={thumbs[p.id] ?? null} brand={brand} now={now} rework={reworks[p.id]} redone={!!redone[p.id]} />
+              <PostTile key={p.id} post={p} href={`/b/${slug}/posts/${p.id}`} thumb={thumbs[p.id] ?? null} brand={brand} now={now} rework={reworks[p.id]} redone={!!redone[p.id]} redoFailed={!!redoFailed[p.id]} />
             ))}
           </div>
         </div>

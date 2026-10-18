@@ -4,13 +4,15 @@ export function postLabel(
   p: { status: string; planned_at: string; needs_new_time: boolean },
   brand: { publisher: string | null; approval_mode: string },
   now: Date,
-  /** redone: the agent's redo came back and nobody has changed the post since. */
-  opts: { redone?: boolean } = {},
+  /** redone: the agent's redo came back and nobody has changed the post since; redoFailed: it failed, likewise. */
+  opts: { redone?: boolean; redoFailed?: boolean } = {},
 ): { text: string; tone: LabelTone } {
   switch (p.status) {
     case "pending_approval":
       if (p.needs_new_time) return { text: "Pick a new time", tone: "needs" };
-      return opts.redone ? { text: "New version · needs your OK", tone: "needs" } : { text: "Needs your OK", tone: "needs" };
+      if (opts.redone) return { text: "New version · needs your OK", tone: "needs" };
+      if (opts.redoFailed) return { text: "Redo didn't work · needs your OK", tone: "needs" };
+      return { text: "Needs your OK", tone: "needs" };
     case "approved":
       if (brand.publisher) return { text: "Scheduled", tone: "ok" };
       return new Date(p.planned_at).getTime() > now.getTime()

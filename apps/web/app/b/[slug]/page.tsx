@@ -51,7 +51,7 @@ export default async function BrandHome({ params, searchParams }: {
 
   // Veils for posts being reworked and "New version · needs your OK" for untouched redos.
   const shownPosts = [...new Map([...weekPosts, ...waiting].map((p) => [p.id, p])).values()];
-  const [{ reworks, redone }, thumbs] = await Promise.all([
+  const [{ reworks, redone, redoFailed }, thumbs] = await Promise.all([
     loadRedoState(supabase, brand.id, shownPosts, "home"),
     signThumbs(supabase, shownPosts, "home"),
   ]);
@@ -80,7 +80,7 @@ export default async function BrandHome({ params, searchParams }: {
         <h2 className="t wide">This <b>week</b></h2>
         <WeekNav slug={slug} prev={addDaysYmd(weekStart, -7)} next={addDaysYmd(weekStart, 7)} label={weekRangeLabel(weekStart)} isCurrent={weekStart === thisWeek} />
       </div>
-      <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} reworks={reworks} redone={redone} />
+      <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} reworks={reworks} redone={redone} redoFailed={redoFailed} />
 
       {hasHomeResults(results)
         ? <ResultsStrip slug={slug} reach={results.reach} changePct={results.changePct} bestTitle={bestTitle} />

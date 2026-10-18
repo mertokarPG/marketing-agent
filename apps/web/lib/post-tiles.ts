@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isRedone, reworkingText, reworkMinutes, type Revision } from "./redo";
+import { isRedone, isRedoFailed, reworkingText, reworkMinutes, type Revision } from "./redo";
 
 type Media = { storage_path: string; bucket?: string };
 
@@ -22,17 +22,18 @@ export async function signThumbs(supabase: SupabaseClient, posts: { id: string; 
   return thumbs;
 }
 
-/** Veil text for posts being reworked, and the posts whose redo came back untouched. */
+/** Veil text for posts being reworked, and the posts whose redo came back (or failed) untouched. */
 export async function loadRedoState(
   supabase: SupabaseClient,
   brandId: string,
   posts: { id: string; status: string; last_changed_at: string | null }[],
   tag: string,
-): Promise<{ reworks: Record<string, string>; redone: Record<string, boolean> }> {
+): Promise<{ reworks: Record<string, string>; redone: Record<string, boolean>; redoFailed: Record<string, boolean> }> {
   const reworks: Record<string, string> = {};
   const redone: Record<string, boolean> = {};
+  const redoFailed: Record<string, boolean> = {};
   const ids = posts.filter((p) => p.status === "reworking" || p.status === "pending_approval").map((p) => p.id);
-  if (!ids.length) return { reworks, redone };
+  if (!ids.length) return { reworks, redone, redoFailed };
   const hasReworking = posts.some((p) => p.status === "reworking");
   const [revQ, genQ] = await Promise.all([
     supabase.from("post_revisions").select("post_id, status, feedback, created_at, finished_at").in("post_id", ids).order("created_at", { ascending: false }),
@@ -48,6 +49,7 @@ export async function loadRedoState(
     const revs = byPost.get(p.id) ?? [];
     if (p.status === "reworking") reworks[p.id] = reworkingText(revs[0]?.feedback ?? null, minutes, 40);
     else if (isRedone(p, revs)) redone[p.id] = true;
+    else if (isRedoFailed(p, revs)) redoFailed[p.id] = true;
   }
-  return { reworks, redone };
+  return { reworks, redone, redoFailed };
 }

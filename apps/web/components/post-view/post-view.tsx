@@ -31,8 +31,6 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
   const [text, setText] = useState(() => joinCaption(post.caption, post.hashtags));
   const flushRef = useRef<(() => Promise<boolean>) | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  // The first load's time: a failed redo is reported only when it ended after the post was opened.
-  const [loadedAt] = useState(data.loadedAt);
   // Set while a redo is being sent; cleared by itself once the post's content key changes.
   const [lockedFor, setLockedFor] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
@@ -53,7 +51,7 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
   const shownUrls = shown.map((s) => s.url);
   const slideCount = shown.length;
   const current = Math.min(slide, Math.max(0, slideCount - 1));
-  const rev = latestRevisionState(post.status, data.revisions, loadedAt);
+  const rev = latestRevisionState(post, data.revisions);
 
   const flushSlides = slideEdit.flush;
   // Caption and slides both saved (or nothing pending); false stops Approve, Redo and Restore.

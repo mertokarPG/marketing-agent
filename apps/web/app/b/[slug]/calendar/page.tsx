@@ -31,7 +31,7 @@ export default async function CalendarPage({ params, searchParams }: {
   if (error) throw new Error(`calendar query failed: ${error.message}`);
   const posts = (data ?? []) as Row[];
 
-  const [{ reworks, redone }, thumbs] = await Promise.all([
+  const [{ reworks, redone, redoFailed }, thumbs] = await Promise.all([
     loadRedoState(supabase, brand.id, posts, "calendar"),
     signThumbs(supabase, posts, "calendar"),
   ]);
@@ -58,7 +58,7 @@ export default async function CalendarPage({ params, searchParams }: {
             <div className="day"><span>{d.weekday}</span><span className="d wide">{d.dayNum}</span></div>
             <div className="day-posts">
               {d.posts.map((p) => (
-                <PostTile key={p.id} post={p} href={`/b/${slug}/posts/${p.id}`} thumb={thumbs[p.id] ?? null} brand={brand} now={now} rework={reworks[p.id]} redone={!!redone[p.id]} />
+                <PostTile key={p.id} post={p} href={`/b/${slug}/posts/${p.id}`} thumb={thumbs[p.id] ?? null} brand={brand} now={now} rework={reworks[p.id]} redone={!!redone[p.id]} redoFailed={!!redoFailed[p.id]} />
               ))}
             </div>
           </div>
