@@ -167,8 +167,12 @@ function buildReactJsxTools(
   return [coverTool, bodyTool];
 }
 
-/** Tools that plan or research new posts. A revise run reworks one existing post, so it gets none of these. */
-const PLAN_ONLY_TOOLS = new Set(["scrape_competitor", "search_trends", "get_trending_topics", "get_hot_topics", "save_post", "get_planned_posts"]);
+/** Tools a revise run doesn't get: it reworks one existing post, so no planning, research or emails. */
+const PLAN_ONLY_TOOLS = new Set([
+  "scrape_competitor", "search_trends", "get_trending_topics", "get_hot_topics", "save_post", "get_planned_posts",
+  // A redo comes back to the owner in the dashboard; it never emails.
+  "send_notification",
+]);
 
 export type ToolMode = "plan" | "revise";
 

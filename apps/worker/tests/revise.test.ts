@@ -176,6 +176,61 @@ describe("revise runs", () => {
     expect((await runFor(rev)).status).toBe("failed");
   });
 
+  it("paused brand between attempts is swept back", async () => {
+    const id = await post({ status: "approved" });
+    const rev = await redo(id);
+    deps.agent = vi.fn().mockRejectedValue(new Error("anthropic 529"));
+    await executeRun(deps, (await claimNextRun(db))!); // attempt 1: revision running, run re-queued
+    expect((await getRevision(db, rev))!.status).toBe("running");
+    expect((await runFor(rev)).status).toBe("queued");
+    await db.query("update brands set status = 'paused' where id = $1", [brandId]);
+    await db.query("update post_revisions set created_at = now() - interval '11 minutes' where id = $1", [rev]);
+    expect(await runLoopTick(deps)).toBe(false);
+    expect(await getPost(id)).toMatchObject({ status: "approved", caption: "original caption" });
+    expect((await getRevision(db, rev))!.status).toBe("failed");
+    expect((await runFor(rev)).status).toBe("failed");
+  });
+
+  for (const prior of ["approved", "pending_approval"]) {
+    it(`failed redo past its time comes back needing a new time (prior ${prior})`, async () => {
+      const id = await post({ status: prior });
+      const rev = await redo(id);
+      await db.query("update posts set planned_at = now() - interval '5 minutes' where id = $1", [id]);
+      deps.agent = vi.fn().mockRejectedValue(new Error("anthropic 529"));
+      deps.maxAttempts = 1;
+      await executeRun(deps, (await claimNextRun(db))!);
+      expect(await getPost(id)).toMatchObject({ status: "pending_approval", needs_new_time: true, caption: "original caption" });
+      expect((await getRevision(db, rev))!.status).toBe("failed");
+    });
+  }
+
+  it("the sweep restores a post whose revise run failed but whose restore did not land", async () => {
+    const id = await post({ status: "approved" });
+    const rev = await redo(id);
+    await db.query("update post_revisions set status = 'running' where id = $1", [rev]);
+    await db.query("update agent_runs set status = 'failed', error = 'boom' where period_key = $1", [rev]);
+    expect(await runLoopTick(deps)).toBe(false);
+    expect(await getPost(id)).toMatchObject({ status: "approved", caption: "original caption" });
+    expect((await getRevision(db, rev))!).toMatchObject({ status: "failed", error: "boom" });
+  });
+
+  it("a revise run that errors after revise_post succeeded finishes as succeeded without a failure email", async () => {
+    const id = await post({ status: "approved" });
+    const rev = await redo(id);
+    deps.agent = vi.fn(async (brand: BrandConfig, d: Db, opts: RunAgentOptions) => {
+      const r = (await getRevision(d, opts.periodKey))!;
+      await revisePost(d, brand, opts.toolContext, r,
+        { caption: "Revised", hashtags: [], images: [opts.revise!.slides[0]], rationale: "x" });
+      throw new Error("anthropic 529 after save");
+    });
+    deps.maxAttempts = 1;
+    await executeRun(deps, (await claimNextRun(db))!);
+    expect((await runFor(rev)).status).toBe("succeeded");
+    expect(await getPost(id)).toMatchObject({ status: "pending_approval", caption: "Revised" });
+    expect((await getRevision(db, rev))!.status).toBe("done");
+    expect(deps.notify).not.toHaveBeenCalled();
+  });
+
   it("a recent paused-brand redo is not swept yet", async () => {
     const id = await post();
     await redo(id);
@@ -200,7 +255,7 @@ describe("revise tools and brief", () => {
   it("revise mode has no save_post and has revise_post", () => {
     const names = buildTools(brand, db, ctx(), "revise").map((t: any) => t.name);
     expect(names).toContain("revise_post");
-    for (const n of ["save_post", "get_planned_posts", "scrape_competitor", "search_trends", "get_hot_topics", "get_trending_topics", "save_learnings"])
+    for (const n of ["save_post", "get_planned_posts", "scrape_competitor", "search_trends", "get_hot_topics", "get_trending_topics", "save_learnings", "send_notification"])
       expect(names).not.toContain(n);
     for (const n of ["generate_image", "compose_image_prompt", "browse_prompt_bank"]) expect(names).toContain(n);
     const plan = buildTools(brand, db, { ...ctx(), kind: "weekly_plan" }).map((t: any) => t.name);

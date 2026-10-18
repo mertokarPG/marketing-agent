@@ -45,12 +45,19 @@ export async function prepareRevision(
   };
 }
 
+/** Whether revise_post landed for this revision. A lookup error counts as not done (the normal failure path runs). */
+export async function revisionDone(db: Db, revisionId: string): Promise<boolean> {
+  try { return (await getRevision(db, revisionId))?.status === "done"; }
+  catch { return false; }
+}
+
 /** Throws unless the agent's revise_post call landed. */
 export async function assertRevised(db: Db, revisionId: string): Promise<void> {
   if ((await getRevision(db, revisionId))?.status !== "done") throw new Error("agent did not revise the post");
 }
 
-/** A revise run failed for good: the post goes back to its snapshot and prior status, the revision is failed. */
+/** A revise run failed for good: the post goes back to its snapshot and prior status, the revision is failed.
+ *  If this fails, sweepStuckRevisions retries the restore on a later tick. */
 export async function failRevision(db: Db, revisionId: string, error: string): Promise<void> {
   try {
     await restoreAfterFailedRevision(db, revisionId);

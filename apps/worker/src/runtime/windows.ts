@@ -43,7 +43,7 @@ Current hashtags: ${revise.hashtags.length ? revise.hashtags.join(" ") : "(none)
 Current slides (${revise.slides.length} slide${revise.slides.length === 1 ? "" : "s"}, in order; pass a path to revise_post to keep that slide):
 ${slides || "(none)"}
 
-Change what the feedback asks for and keep what it doesn't touch. Keep the date and time unless the feedback asks otherwise; revise_post cannot move the post, so if the feedback asks for another time, say so in the rationale and the owner will reschedule it. You may rewrite the caption and hashtags, reorder, drop or swap slides, use the brand's product photos, re-render text slides, and create new images if your tools allow it. When done, call revise_post exactly once with the complete new version, then stop. Do not send notifications.`;
+Change what the feedback asks for and keep what it doesn't touch. Keep the date and time unless the feedback asks otherwise; revise_post cannot move the post, so if the feedback asks for another time, say so in the rationale and the owner will reschedule it. You may rewrite the caption and hashtags, reorder, drop or swap slides, use the brand's product photos, re-render text slides, and create new images if your tools allow it. When done, call revise_post exactly once with the complete new version, then stop.`;
   }
   const w = runWindow(brand, kind, periodKey, now);
   const windowLine = `Allowed plannedAt window: ${w.start.toISOString()} → ${w.end.toISOString()} (UTC). Brand timezone: ${tz}. Local time now: ${formatLocal(now, tz)}.`;

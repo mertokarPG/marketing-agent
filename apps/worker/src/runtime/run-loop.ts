@@ -5,7 +5,7 @@ import {
 import type { RunAgentOptions, RunAgentResult } from "../orchestrator.js";
 import type { Publisher } from "../publishers/types.js";
 import { materializeBrand } from "./materialize.js";
-import { assertRevised, failRevision, prepareRevision, type ReviseBriefContext } from "./revise.js";
+import { assertRevised, failRevision, prepareRevision, revisionDone, type ReviseBriefContext } from "./revise.js";
 import { runWindow } from "./windows.js";
 
 export interface RunDeps {
@@ -92,7 +92,11 @@ export async function executeRun(deps: RunDeps, run: RunRow): Promise<void> {
     });
     if (!owned) lostClaim(run, "success");
   } catch (e) {
-    if (run.attempts < (deps.maxAttempts ?? 3)) {
+    // The post was already revised (e.g. the agent errored after revise_post): the redo is done, so is the run.
+    if (run.kind === "revise" && (await revisionDone(db, run.period_key))) {
+      const owned = await finishRun(db, run.id, run.attempts, { status: "succeeded", summary: `revised; then: ${msg(e)}` });
+      if (!owned) lostClaim(run, "success");
+    } else if (run.attempts < (deps.maxAttempts ?? 3)) {
       if (!(await requeueRun(db, run.id, run.attempts, msg(e)))) lostClaim(run, "re-queue");
     } else if (await finishRun(db, run.id, run.attempts, { status: "failed", error: msg(e) })) {
       if (run.kind === "revise") await failRevision(db, run.period_key, msg(e));
