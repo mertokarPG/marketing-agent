@@ -6,7 +6,7 @@ import { loadBrand } from "./brand-context";
 
 export const dynamic = "force-dynamic";
 
-export default async function BrandLayout({ children, params }: { children: ReactNode; params: Promise<{ slug: string }> }) {
+export default async function BrandLayout({ children, modal, params }: { children: ReactNode; modal: ReactNode; params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const brand = await loadBrand(slug);
   const supabase = await createClient();
@@ -16,6 +16,7 @@ export default async function BrandLayout({ children, params }: { children: Reac
     <>
       <Nav brand={{ slug: brand.slug, name: brand.name }} brands={brands ?? []} />
       <main>{children}</main>
+      {modal}
       <Footer />
     </>
   );

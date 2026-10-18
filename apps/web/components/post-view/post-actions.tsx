@@ -1,0 +1,74 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { approve, unapprove, skip, type ActionResult } from "@/app/b/[slug]/posts/[id]/actions";
+import type { PostActionsView } from "@/app/b/[slug]/posts/[id]/post-data";
+
+export type After = "approved" | "skipped" | "later" | "keep" | "undone";
+
+/** The buttons at the bottom of the right column, by status and mode. Viewers and read-only posts get none. */
+export function PostActions({ slug, postId, view, flush, onAfter }: {
+  slug: string;
+  postId: string;
+  view: PostActionsView;
+  flush: () => Promise<boolean>;
+  onAfter: (what: After) => void;
+}) {
+  const [busy, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
+  const run = (what: After, fn: () => Promise<ActionResult>, saveFirst = true) => {
+    setError(null);
+    start(async () => {
+      if (saveFirst && !(await flush())) { setError("Fix the caption first; it isn't saved yet."); return; }
+      const res = await fn();
+      if (!res.ok) { setError(res.message); return; }
+      setConfirming(false);
+      onAfter(what);
+    });
+  };
+  const later = (what: After) => run(what, async () => ({ ok: true }));
+
+  if (view.kind === "none") return null;
+
+  const skipLabel = view.kind === "autopilot" ? "Pull this post" : "Skip this post";
+  const confirmBox = confirming && (
+    <div className="confirm" role="group" aria-label={skipLabel}>
+      <span>{view.kind === "autopilot" ? "Pull it? It won't go out." : "Skip it? It won't go out."}</span>
+      <button type="button" className="pill" disabled={busy} onClick={() => run("skipped", () => skip(slug, postId), false)}>
+        {view.kind === "autopilot" ? "Yes, pull it" : "Yes, skip it"}
+      </button>
+      <button type="button" className="linkish" onClick={() => setConfirming(false)}>Cancel</button>
+    </div>
+  );
+
+  return (
+    <div className="pv-actions-wrap">
+      {view.kind === "review" && (
+        <div className="pv-actions">
+          <button type="button" className="pill" disabled={busy || !!view.approveBlocked} aria-describedby={view.approveBlocked ? `ab-${postId}` : undefined}
+            onClick={() => run("approved", () => approve(slug, postId))}>Approve ↳</button>
+          <button type="button" className="pill ghost" disabled={busy} onClick={() => later("later")}>Save &amp; decide later</button>
+          <button type="button" className="linkish skip" disabled={busy} onClick={() => setConfirming(true)}>{skipLabel}</button>
+        </div>
+      )}
+      {view.kind === "approved" && (
+        <div className="pv-actions">
+          <span className="pill done" role="status">Approved ✓</span>
+          <button type="button" className="linkish" disabled={busy} onClick={() => run("undone", () => unapprove(slug, postId), false)}>Undo</button>
+          <button type="button" className="linkish skip" disabled={busy} onClick={() => setConfirming(true)}>{skipLabel}</button>
+        </div>
+      )}
+      {view.kind === "autopilot" && (
+        <div className="pv-actions">
+          <button type="button" className="pill" disabled={busy} onClick={() => later("keep")}>Keep</button>
+          <button type="button" className="linkish skip" disabled={busy} onClick={() => setConfirming(true)}>{skipLabel}</button>
+        </div>
+      )}
+      {view.approveBlocked && <p id={`ab-${postId}`} className="cap-help warn">{view.approveBlocked}</p>}
+      {confirmBox}
+      {error && <p className="cap-help warn" role="alert">{error}</p>}
+    </div>
+  );
+}
