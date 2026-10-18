@@ -18,7 +18,7 @@ const sameValue = (a: Value, b: Value) =>
  * Autosaves 800ms after typing stops. flushRef saves any pending edit and resolves false
  * while the caption has a problem or the save failed, so Approve / "Save & decide later" stop.
  */
-export function CaptionEditor({ slug, postId, caption, hashtags, editable, onTextChange, flushRef }: {
+export function CaptionEditor({ slug, postId, caption, hashtags, editable, onTextChange, flushRef, discardRef }: {
   slug: string;
   postId: string;
   caption: string;
@@ -26,6 +26,8 @@ export function CaptionEditor({ slug, postId, caption, hashtags, editable, onTex
   editable: boolean;
   onTextChange: (text: string) => void;
   flushRef: MutableRefObject<(() => Promise<boolean>) | null>;
+  /** Drops an unsaved edit so closing doesn't send it. */
+  discardRef?: MutableRefObject<(() => void) | null>;
 }) {
   const [value, setValue] = useState<Value>(() => ({ caption, tags: hashtags.join(" ") }));
   const [state, setState] = useState<SaveState>({ kind: "idle", message: null });
@@ -47,13 +49,20 @@ export function CaptionEditor({ slug, postId, caption, hashtags, editable, onTex
       if (timer.current) { clearTimeout(timer.current); timer.current = null; }
       return q.flush();
     };
+    if (discardRef) {
+      discardRef.current = () => {
+        if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+        q.discard();
+      };
+    }
     return () => {
       flushRef.current = null;
+      if (discardRef) discardRef.current = null;
       // Closing the view with an edit still waiting: send it anyway.
       if (timer.current) { clearTimeout(timer.current); timer.current = null; }
       if (q.dirty()) void q.flush();
     };
-  }, [flushRef]);
+  }, [flushRef, discardRef]);
 
   const tags = parseTags(value.tags);
   const len = publishedLength(value.caption, tags);

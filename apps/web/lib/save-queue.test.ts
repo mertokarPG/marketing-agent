@@ -77,3 +77,15 @@ describe("createSaveQueue", () => {
     expect(calls).toEqual(["b"]);
   });
 });
+
+describe("createSaveQueue discard", () => {
+  it("drops the unsaved value so nothing is sent later", async () => {
+    const { q, calls } = setup({ validate: (v) => (v === "" ? "empty" : null) });
+    q.set("");
+    expect(q.dirty()).toBe(true);
+    q.discard();
+    expect(q.dirty()).toBe(false);
+    expect(await q.flush()).toBe(true);
+    expect(calls).toEqual([]);
+  });
+});

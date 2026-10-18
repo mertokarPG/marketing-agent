@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PostViewData } from "@/app/b/[slug]/posts/[id]/load-post";
-import { joinCaption, formatChip, whenLabel, slideSheetTitle } from "@/app/b/[slug]/posts/[id]/post-data";
+import { joinCaption, formatChip, whenLabel, slideSheetTitle, closeStep, DISCARD_CAPTION } from "@/app/b/[slug]/posts/[id]/post-data";
 import { latestRevisionState, REDO_FAILED } from "@/lib/redo";
 import { InstagramPreview } from "./instagram-preview";
 import { SlideSheet, useSlides, type Slide } from "./slide-sheet";
@@ -30,6 +30,9 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
   const [slide, setSlide] = useState(0);
   const [text, setText] = useState(() => joinCaption(post.caption, post.hashtags));
   const flushRef = useRef<(() => Promise<boolean>) | null>(null);
+  const discardRef = useRef<(() => void) | null>(null);
+  // Close / Esc found a caption edit that can't be saved: ask before dropping it.
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   // Set while a redo is being sent; cleared by itself once the post's content key changes.
   const [lockedFor, setLockedFor] = useState<string | null>(null);
@@ -60,11 +63,24 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
     return c && s;
   }, [flushSlides]);
 
-  const close = useCallback(() => {
-    void flush();
+  const leave = useCallback(() => {
     if (variant === "overlay") router.back();
     else router.push(`/b/${slug}`);
-  }, [flush, router, slug, variant]);
+  }, [router, slug, variant]);
+
+  const close = useCallback(async () => {
+    if (closeStep({ captionSaved: false, confirming: confirmDiscard }) === "keep") { setConfirmDiscard(false); return; }
+    void flushSlides();
+    const captionSaved = (await flushRef.current?.()) ?? true;
+    if (closeStep({ captionSaved, confirming: false }) === "leave") leave();
+    else setConfirmDiscard(true);
+  }, [confirmDiscard, flushSlides, leave]);
+
+  const discard = useCallback(() => {
+    discardRef.current?.();
+    setConfirmDiscard(false);
+    leave();
+  }, [leave]);
 
   const go = useCallback(async (id: string) => {
     if (!(await flush())) return; // the caption's problem is shown; don't leave it unsaved
@@ -78,14 +94,14 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
     if (what === "undone") return;
     if (what === "approved" && !nav) return; // stays open, now showing "Approved ✓"
     if (nav?.next && what !== "keep") void go(nav.next);
-    else close();
+    else void close();
   }, [close, go, nav]);
 
   // Esc closes; ←/→ step through waiting posts (or slides when not reviewing). Not while typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === "Escape") { e.preventDefault(); close(); return; }
+      if (e.key === "Escape") { e.preventDefault(); void close(); return; }
       if (typingIn(e.target)) return;
       if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
         const fwd = e.key === "ArrowRight";
@@ -147,9 +163,16 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
               <button type="button" className="linkish" aria-label="Next post" disabled={!nav.next} onClick={() => { if (nav.next) void go(nav.next); }}>›</button>
             </span>
           )}
-          <button type="button" className="linkish pv-close" onClick={close}>Close ✕</button>
+          <button type="button" className="linkish pv-close" onClick={() => void close()}>Close ✕</button>
         </div>
       </div>
+      {confirmDiscard && (
+        <div className="confirm" role="group" aria-label={DISCARD_CAPTION}>
+          <span>{DISCARD_CAPTION}</span>
+          <button type="button" className="pill" autoFocus onClick={() => setConfirmDiscard(false)}>Keep editing</button>
+          <button type="button" className="linkish" onClick={discard}>Discard</button>
+        </div>
+      )}
 
       <div className="pv-body">
         <div className={`pv-media${reworking ? " dim" : ""}`} aria-busy={reworking || undefined}>
@@ -201,6 +224,7 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
               editable={editable}
               onTextChange={setText}
               flushRef={flushRef}
+              discardRef={discardRef}
             />
           )}
           {post.rationale && <p className="why"><b>Why this post:</b> {post.rationale}</p>}
@@ -236,7 +260,7 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
 
   if (variant === "page") return body;
   return (
-    <div className="pv-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}>
+    <div className="pv-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) void close(); }}>
       {body}
     </div>
   );

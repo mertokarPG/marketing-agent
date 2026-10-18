@@ -69,6 +69,17 @@ export function stepNav(waitingIds: string[], currentId: string): { prev: string
   return { prev: index > 0 ? waitingIds[index - 1] : null, next: index < total - 1 ? waitingIds[index + 1] : null, index, total };
 }
 
+export const DISCARD_CAPTION = "Discard your caption change?";
+
+/**
+ * What Close / Esc does. A caption edit that is invalid or didn't save is never dropped silently: the view asks
+ * first, and Close or Esc again while asking means keep editing.
+ */
+export function closeStep(s: { captionSaved: boolean; confirming: boolean }): "leave" | "confirm" | "keep" {
+  if (s.confirming) return "keep";
+  return s.captionSaved ? "leave" : "confirm";
+}
+
 export type ActionKind = "review" | "approved" | "autopilot" | "none";
 export type PostActionsView = {
   kind: ActionKind;

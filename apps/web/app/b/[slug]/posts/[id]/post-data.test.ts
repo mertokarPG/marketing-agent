@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseCaption, joinCaption, parseTags, publishedLength, captionLimit, captionProblem, stepNav, postActions,
+  closeStep, DISCARD_CAPTION, parseCaption, joinCaption, parseTags, publishedLength, captionLimit, captionProblem, stepNav, postActions,
   goesOutLabel, formatChip, whenLabel, slideSheetTitle, previewCaption, lastChangedText, validLocalTime, isPastLocal, latestMetrics,
 } from "./post-data";
 
@@ -198,5 +198,18 @@ describe("latestMetrics", () => {
     ]);
     expect(m?.reach).toBe(9);
     expect(latestMetrics([])).toBeNull();
+  });
+});
+
+describe("closeStep (Close / Esc)", () => {
+  it("leaves once the caption is saved (or never changed)", () => {
+    expect(closeStep({ captionSaved: true, confirming: false })).toBe("leave");
+  });
+  it("asks before dropping a caption edit that is invalid or didn't save", () => {
+    expect(closeStep({ captionSaved: false, confirming: false })).toBe("confirm");
+    expect(DISCARD_CAPTION).toBe("Discard your caption change?");
+  });
+  it("Close or Esc again while asking means keep editing", () => {
+    expect(closeStep({ captionSaved: false, confirming: true })).toBe("keep");
   });
 });

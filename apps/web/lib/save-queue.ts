@@ -43,6 +43,8 @@ export function createSaveQueue<T>(opts: {
   return {
     set(v: T) { current = v; opts.onState({ kind: "idle", message: null }); },
     dirty: () => !opts.equals(current, saved),
+    /** Forget the unsaved value (the user chose to discard it). */
+    discard() { current = saved; opts.onState({ kind: "idle", message: null }); },
     flush,
   };
 }
