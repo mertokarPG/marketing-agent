@@ -303,7 +303,7 @@ describe("dashboard RPCs", () => {
       }
     });
 
-    it("concurrent redo after approve is refused", async () => {
+    it("redo on an approved post is accepted; a second redo while reworking is refused", async () => {
       const id = await post(brandA);
       await call(owner, "select approve_post($1)", [id]);
       await redo(id, "shorter caption", editor);
