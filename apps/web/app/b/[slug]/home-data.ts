@@ -2,14 +2,19 @@ import { addDaysYmd } from "@carepost/core/time";
 
 const DAY = 86_400_000;
 
-export function waitingPosts<T extends { status: string; planned_at: string }>(posts: T[], now: Date): T[] {
+type WaitingPost = { status: string; planned_at: string; needs_new_time?: boolean | null };
+
+/** Posts waiting for an OK: future ones, and any that need a new time (listed first). */
+export function waitingPosts<T extends WaitingPost>(posts: T[], now: Date): T[] {
   return posts
-    .filter((p) => p.status === "pending_approval" && new Date(p.planned_at).getTime() > now.getTime())
-    .sort((a, b) => new Date(a.planned_at).getTime() - new Date(b.planned_at).getTime());
+    .filter((p) => p.status === "pending_approval" && (!!p.needs_new_time || new Date(p.planned_at).getTime() > now.getTime()))
+    .sort((a, b) => Number(!!b.needs_new_time) - Number(!!a.needs_new_time)
+      || new Date(a.planned_at).getTime() - new Date(b.planned_at).getTime());
 }
 
 export function homeLede(
   brand: { status: string; publisher: string | null; approval_mode: string },
+  /** Posts on the needs-you card (see needsYouPosts). */
   waitingCount: number,
   weekHasPosts: boolean,
 ): string {
@@ -17,15 +22,53 @@ export function homeLede(
   if (!weekHasPosts) return "Your first plan arrives Sunday morning.";
   const lead = "Your Instagram is planned for the week.";
   if (!brand.publisher) return `${lead} Nothing goes out until Instagram is connected.`;
-  if (brand.approval_mode === "autopilot") return "Your Instagram is planned for the week and goes out on its own.";
+  if (brand.approval_mode === "autopilot") {
+    if (waitingCount === 1) return "A post you asked to redo is back and needs your OK.";
+    if (waitingCount > 1) return "Posts you asked to redo are back and need your OK.";
+    return "Your Instagram is planned for the week and goes out on its own.";
+  }
   if (waitingCount > 0) {
     return `${lead} ${waitingCount} ${waitingCount === 1 ? "post is" : "posts are"} waiting for your OK; nothing goes out without it.`;
   }
   return `${lead} Nothing is waiting for your OK.`;
 }
 
-export function showsNeedsYou(brand: { approval_mode: string; status: string }, waitingCount: number): boolean {
-  return brand.approval_mode !== "autopilot" && brand.status !== "paused" && waitingCount > 0;
+/**
+ * The posts the needs-you card lists. Autopilot brands only see posts that came back from a redo (a redo always
+ * comes back for review) or need a new time; everything else there goes out on its own. Nothing while paused.
+ */
+export function needsYouPosts<T extends { id: string; needs_new_time?: boolean | null }>(
+  brand: { approval_mode: string; status: string },
+  waiting: T[],
+  redone: Record<string, boolean>,
+): T[] {
+  if (brand.status === "paused") return [];
+  if (brand.approval_mode !== "autopilot") return waiting;
+  return waiting.filter((p) => redone[p.id] || !!p.needs_new_time);
+}
+
+export function showsNeedsYou(
+  brand: { approval_mode: string; status: string },
+  waiting: { id: string; needs_new_time?: boolean | null }[],
+  redone: Record<string, boolean>,
+): boolean {
+  return needsYouPosts(brand, waiting, redone).length > 0;
+}
+
+/** The card's first line, with the part shown in bold. Posts needing a new time come first, so they lead. */
+export function needsYouFirstLine(
+  waiting: { planned_at: string; needs_new_time?: boolean | null }[],
+  tz: string,
+): { before: string; strong: string; after: string } {
+  const first = waiting[0];
+  const newTime = waiting.filter((w) => w.needs_new_time).length;
+  if (first?.needs_new_time) {
+    return newTime === 1
+      ? { before: "", strong: "One post needs a new time.", after: " Pick one, take a look, and approve." }
+      : { before: "", strong: `${newTime} posts need a new time.`, after: " Pick one for each, take a look, and approve." };
+  }
+  const { day, time } = firstGoesOut(first?.planned_at ?? new Date().toISOString(), tz);
+  return { before: "The first one goes out ", strong: `${day} at ${time}`, after: ". Take a look, tweak the caption if you like, and approve." };
 }
 
 export function firstGoesOut(iso: string, tz: string): { day: string; time: string } {

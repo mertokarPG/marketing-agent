@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { waitingPosts, homeLede, firstGoesOut, showsNeedsYou, postTitle, weekRangeLabel, resolveWeek, summarizeResults, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
+import { waitingPosts, homeLede, firstGoesOut, showsNeedsYou, needsYouPosts, needsYouFirstLine, postTitle, weekRangeLabel, resolveWeek, summarizeResults, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
 
 const now = new Date("2026-10-19T12:00:00Z");
-const p = (id: string, status: string, planned_at: string) => ({ id, status, planned_at, caption: "" });
+const p = (id: string, status: string, planned_at: string, needs_new_time = false) => ({ id, status, planned_at, needs_new_time, caption: "" });
 
 describe("waitingPosts", () => {
   it("keeps pending future posts sorted, drops reworking/past/approved", () => {
@@ -15,10 +15,34 @@ describe("waitingPosts", () => {
     ], now);
     expect(out.map((x) => x.id)).toEqual(["a", "c"]);
   });
+  it("keeps posts that need a new time, past or not, and lists them first", () => {
+    const out = waitingPosts([
+      p("c", "pending_approval", "2026-10-24T08:00:00Z"),
+      p("late", "pending_approval", "2026-10-18T08:00:00Z", true),
+      p("a", "pending_approval", "2026-10-20T08:00:00Z"),
+      p("soon", "pending_approval", "2026-10-21T08:00:00Z", true),
+      p("old", "pending_approval", "2026-10-17T08:00:00Z"),
+    ], now);
+    expect(out.map((x) => x.id)).toEqual(["late", "soon", "a", "c"]);
+  });
+});
+
+describe("needsYouFirstLine", () => {
+  const tz = "Europe/Brussels";
+  it("says when the first one goes out", () => {
+    expect(needsYouFirstLine([p("a", "pending_approval", "2026-10-20T08:00:00Z")], tz))
+      .toEqual({ before: "The first one goes out ", strong: "Tuesday at 10:00", after: ". Take a look, tweak the caption if you like, and approve." });
+  });
+  it("leads with posts that need a new time", () => {
+    expect(needsYouFirstLine([p("late", "pending_approval", "2026-10-18T08:00:00Z", true), p("a", "pending_approval", "2026-10-20T08:00:00Z")], tz))
+      .toEqual({ before: "", strong: "One post needs a new time.", after: " Pick one, take a look, and approve." });
+    expect(needsYouFirstLine([p("x", "pending_approval", "2026-10-18T08:00:00Z", true), p("y", "pending_approval", "2026-10-18T09:00:00Z", true)], tz))
+      .toEqual({ before: "", strong: "2 posts need a new time.", after: " Pick one for each, take a look, and approve." });
+  });
 });
 
 describe("homeLede", () => {
-  const b = { status: "active", publisher: "postiz", approval_mode: "manual" };
+  const b = { status: "active", publisher: "postiz", approval_mode: "review" };
   it("paused", () => expect(homeLede({ ...b, status: "paused" }, 3, true)).toBe("Carepost is paused for this brand. Nothing will be planned or posted."));
   it("empty week", () => expect(homeLede(b, 0, false)).toBe("Your first plan arrives Sunday morning."));
   it("review with waiting", () => {
@@ -27,15 +51,34 @@ describe("homeLede", () => {
   });
   it("nothing waiting", () => expect(homeLede(b, 0, true)).toBe("Your Instagram is planned for the week. Nothing is waiting for your OK."));
   it("homeLede for an autopilot brand", () => expect(homeLede({ ...b, approval_mode: "autopilot" }, 0, true)).toBe("Your Instagram is planned for the week and goes out on its own."));
+  it("homeLede for an autopilot brand with a redone post back", () => {
+    expect(homeLede({ ...b, approval_mode: "autopilot" }, 1, true)).toBe("A post you asked to redo is back and needs your OK.");
+    expect(homeLede({ ...b, approval_mode: "autopilot" }, 2, true)).toBe("Posts you asked to redo are back and need your OK.");
+  });
   it("no publisher", () => expect(homeLede({ ...b, publisher: null }, 2, true)).toBe("Your Instagram is planned for the week. Nothing goes out until Instagram is connected."));
 });
 
-describe("showsNeedsYou", () => {
+describe("showsNeedsYou / needsYouPosts", () => {
   const b = { approval_mode: "review", status: "active" };
-  it("review brand with waiting posts", () => expect(showsNeedsYou(b, 2)).toBe(true));
-  it("hidden when nothing waiting", () => expect(showsNeedsYou(b, 0)).toBe(false));
-  it("hidden for autopilot", () => expect(showsNeedsYou({ ...b, approval_mode: "autopilot" }, 2)).toBe(false));
-  it("hidden when paused", () => expect(showsNeedsYou({ ...b, status: "paused" }, 2)).toBe(false));
+  const auto = { ...b, approval_mode: "autopilot" };
+  const plain = p("a", "pending_approval", "2026-10-20T08:00:00Z");
+  const redoneOne = p("r", "pending_approval", "2026-10-21T08:00:00Z");
+  const late = p("late", "pending_approval", "2026-10-18T08:00:00Z", true);
+  it("review brand with waiting posts", () => expect(showsNeedsYou(b, [plain], {})).toBe(true));
+  it("hidden when nothing waiting", () => expect(showsNeedsYou(b, [], {})).toBe(false));
+  it("hidden for autopilot when nothing came back from a redo or needs a new time", () => {
+    expect(showsNeedsYou(auto, [plain], {})).toBe(false);
+    expect(needsYouPosts(auto, [plain], {})).toEqual([]);
+  });
+  it("shown for autopilot with only the redone posts and the ones needing a new time", () => {
+    expect(showsNeedsYou(auto, [plain, redoneOne], { r: true })).toBe(true);
+    expect(needsYouPosts(auto, [late, plain, redoneOne], { r: true }).map((x) => x.id)).toEqual(["late", "r"]);
+  });
+  it("review brands list every waiting post", () => expect(needsYouPosts(b, [late, plain], {}).map((x) => x.id)).toEqual(["late", "a"]));
+  it("hidden when paused", () => {
+    expect(showsNeedsYou({ ...b, status: "paused" }, [plain], {})).toBe(false);
+    expect(showsNeedsYou({ ...auto, status: "paused" }, [redoneOne], { r: true })).toBe(false);
+  });
 });
 
 describe("helpers", () => {

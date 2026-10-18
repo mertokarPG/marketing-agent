@@ -8,7 +8,7 @@ import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
 import { loadRedoState, signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "./brand-context";
-import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
+import { waitingPosts, homeLede, needsYouPosts, needsYouFirstLine, showsNeedsYou, postTitle, weekRangeLabel, resolveWeek, summarizeResults, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
 
 type Media = { storage_path: string; bucket?: string };
 type Row = TilePost & { media: Media[] | null; last_changed_at: string | null };
@@ -32,11 +32,15 @@ export default async function BrandHome({ params, searchParams }: {
   const from = zonedTimeToUtc(weekStart, "00:00", tz).toISOString();
   const to = zonedTimeToUtc(addDaysYmd(weekStart, 7), "00:00", tz).toISOString();
   const since = new Date(now.getTime() - 14 * 86_400_000).toISOString();
+  const nowIso = now.toISOString();
 
   const [weekQ, waitQ, resQ] = await Promise.all([
     supabase.from("posts").select(COLS).eq("brand_id", brand.id).gte("planned_at", from).lt("planned_at", to).order("planned_at"),
-    supabase.from("posts").select(COLS).eq("brand_id", brand.id).eq("status", "pending_approval").gt("planned_at", now.toISOString()).order("planned_at").limit(50),
-    supabase.from("posts").select("id, planned_at, caption").eq("brand_id", brand.id).eq("status", "published").gte("planned_at", since).lte("planned_at", now.toISOString()),
+    // Future posts waiting for an OK, and any that need a new time (those first, so the limit never drops them).
+    supabase.from("posts").select(COLS).eq("brand_id", brand.id).eq("status", "pending_approval")
+      .or(`planned_at.gt."${nowIso}",needs_new_time.eq.true`)
+      .order("needs_new_time", { ascending: false }).order("planned_at").limit(50),
+    supabase.from("posts").select("id, planned_at, caption").eq("brand_id", brand.id).eq("status", "published").gte("planned_at", since).lte("planned_at", nowIso),
   ]);
   for (const q of [weekQ, waitQ, resQ]) if (q.error) throw new Error(`home query failed: ${q.error.message}`);
   const weekPosts = (weekQ.data ?? []) as Row[];
@@ -56,8 +60,9 @@ export default async function BrandHome({ params, searchParams }: {
     signThumbs(supabase, shownPosts, "home"),
   ]);
 
+  const needsYou = needsYouPosts(brand, waiting, redone);
+  const first = needsYou[0];
   const days = buildWeek(weekPosts, weekStart, tz);
-  const first = waiting[0];
   const weekHasPosts = weekPosts.length > 0 || waiting.length > 0;
   const dayFmt = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", day: "numeric" });
   const bestTitle = results.best ? postTitle(results.best.caption) : null;
@@ -65,13 +70,13 @@ export default async function BrandHome({ params, searchParams }: {
   return (
     <div>
       <h1 className="hero wide">{name ? <>{greeting(now, tz)}, <b>{name.toUpperCase()}.</b></> : <>{greeting(now, tz)}.</>}</h1>
-      <p className="lede">{homeLede(brand, waiting.length, weekHasPosts)}</p>
+      <p className="lede">{homeLede(brand, needsYou.length, weekHasPosts)}</p>
 
-      {showsNeedsYou(brand, waiting.length) && first && (
+      {showsNeedsYou(brand, waiting, redone) && first && (
         <NeedsYouCard
-          count={waiting.length}
-          goesOut={firstGoesOut(first.planned_at, tz)}
-          items={waiting.map((w) => ({ id: w.id, dayLabel: dayFmt.format(new Date(w.planned_at)), title: postTitle(w.caption), redone: !!redone[w.id] }))}
+          count={needsYou.length}
+          firstLine={needsYouFirstLine(needsYou, tz)}
+          items={needsYou.map((w) => ({ id: w.id, dayLabel: dayFmt.format(new Date(w.planned_at)), title: postTitle(w.caption), redone: !!redone[w.id] }))}
           reviewHref={`/b/${slug}/posts/${first.id}?review=1`}
         />
       )}

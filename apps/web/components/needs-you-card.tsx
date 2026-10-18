@@ -2,9 +2,10 @@ import Link from "next/link";
 
 export type Waiting = { id: string; dayLabel: string; title: string; redone?: boolean };
 
-export function NeedsYouCard({ count, goesOut, items, reviewHref }: {
+export function NeedsYouCard({ count, firstLine, items, reviewHref }: {
   count: number;
-  goesOut: { day: string; time: string };
+  /** From needsYouFirstLine: when the first one goes out, or that posts need a new time. */
+  firstLine: { before: string; strong: string; after: string };
   items: Waiting[];
   reviewHref: string;
 }) {
@@ -13,7 +14,7 @@ export function NeedsYouCard({ count, goesOut, items, reviewHref }: {
       <div className="card-head"><small>Needs you</small><h2 className="t wide">{count} {count === 1 ? "post" : "posts"} to review</h2></div>
       <div className="card-body">
         <div className="block"><span className="n wide">{count}</span></div>
-        <div className="copy">The first one goes out <b>{goesOut.day} at {goesOut.time}</b>. Take a look, tweak the caption if you like, and approve.</div>
+        <div className="copy">{firstLine.before}<b>{firstLine.strong}</b>{firstLine.after}</div>
         <div className="list">
           {items.slice(0, 6).map((it, i) => (
             <div key={it.id}><span className="num wide">{String(i + 1).padStart(2, "0")}.</span><span>{it.dayLabel} · {it.title}{it.redone ? " · new version" : ""}</span></div>

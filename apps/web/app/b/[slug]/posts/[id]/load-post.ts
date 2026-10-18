@@ -90,8 +90,9 @@ export async function loadPost(slug: string, id: string, review: boolean): Promi
           .eq("post_id", post.id).order("measured_at", { ascending: false }).limit(1)
       : Promise.resolve({ data: [], error: null }),
     review
-      ? supabase.from("posts").select("id, status, planned_at").eq("brand_id", brand.id)
-          .eq("status", "pending_approval").gt("planned_at", now.toISOString()).order("planned_at").limit(50)
+      ? supabase.from("posts").select("id, status, planned_at, needs_new_time").eq("brand_id", brand.id)
+          .eq("status", "pending_approval").or(`planned_at.gt."${now.toISOString()}",needs_new_time.eq.true`)
+          .order("needs_new_time", { ascending: false }).order("planned_at").limit(50)
       : Promise.resolve({ data: null, error: null }),
   ]);
   if (metricsQ.error) throw new Error(`metrics query failed: ${metricsQ.error.message}`);
