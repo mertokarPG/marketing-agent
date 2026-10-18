@@ -5,5 +5,5 @@ it("formats planned time in the brand timezone", () => {
 });
 it("labels statuses for non-technical readers", () => {
   expect(statusLabel("pending_approval")).toBe("Needs your OK");
-  expect(statusLabel("expired")).toBe("Expired (not approved in time)");
+  expect(statusLabel("expired")).toBe("Didn't go out");
 });

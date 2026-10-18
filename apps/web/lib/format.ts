@@ -5,5 +5,4 @@ export function formatPlanned(iso: string, tz: string): string {
 }
 // Kept for existing pages; delegates to the shared labels (brand-agnostic: assumes a connected publisher).
 export const statusLabel = (s: string) =>
-  s === "expired" ? "Expired (not approved in time)"
-  : postLabel({ status: s, planned_at: "", needs_new_time: false }, { publisher: "x", approval_mode: "manual" }, new Date()).text;
+  postLabel({ status: s, planned_at: "", needs_new_time: false }, { publisher: "x", approval_mode: "manual" }, new Date()).text;
