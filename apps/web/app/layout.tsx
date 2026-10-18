@@ -1,8 +1,23 @@
+import type { ReactNode } from "react";
+import "./globals.css";
+import { archivo } from "./fonts";
+import { getTheme } from "@/lib/theme";
+import { Ribbon } from "@/components/ribbon";
+import { ThemeToggle } from "@/components/theme-toggle";
+
 export const metadata = { title: "Carepost" };
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const theme = await getTheme();
   return (
-    <html lang="en">
-      <body style={{ fontFamily: "system-ui, sans-serif", maxWidth: 960, margin: "0 auto", padding: 16 }}>{children}</body>
+    <html lang="en" data-theme={theme} className={archivo.variable}>
+      <body>
+        <Ribbon />
+        <div className="page">
+          <div className="topbar"><ThemeToggle initial={theme} /></div>
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

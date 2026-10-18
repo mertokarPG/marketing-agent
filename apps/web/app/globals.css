@@ -1,0 +1,111 @@
+/* General Sans (Fontshare, free). Files are added to public/fonts/ separately. */
+@font-face { font-family: "General Sans"; font-weight: 300; font-style: normal; font-display: swap; src: url("/fonts/GeneralSans-Light.woff2") format("woff2"); }
+@font-face { font-family: "General Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("/fonts/GeneralSans-Regular.woff2") format("woff2"); }
+@font-face { font-family: "General Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("/fonts/GeneralSans-Medium.woff2") format("woff2"); }
+@font-face { font-family: "General Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url("/fonts/GeneralSans-Semibold.woff2") format("woff2"); }
+
+:root {
+  --ink: #060117;
+  --violet: #1a0543;
+  --electric: #6a36ff;
+  --cream: #f4f0e9;
+  --pink: #f12056;
+  --lav: #8e7bff;
+
+  /* semantic (dark is the default) */
+  --bg: var(--ink);
+  --fg: var(--cream);
+  --card-bg: var(--violet);
+  --card-border: transparent;
+  --card-rule: var(--ink);
+  --rule: rgba(244, 240, 233, 0.5);
+  --pill-bg: var(--cream);
+  --pill-fg: var(--ink);
+  --tag-bg: var(--violet);
+  --tag-fg: var(--cream);
+  --block-bg: var(--electric);
+  --block-fg: var(--ink);
+  --rest-border: rgba(244, 240, 233, 0.15);
+  --rest-fg: rgba(244, 240, 233, 0.45);
+  --input-bg: var(--violet);
+  --focus: var(--electric);
+  --grain-a: 0.34; /* 240px tile */
+  --grain-b: 0.18; /* 800px tile */
+  --ribbon-pink: 0.85;
+  --ribbon-violet: 0.9;
+  --ribbon-glow: 0.35;
+
+  --font-body: "General Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-wide), "Archivo", ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-theme="light"] {
+  --bg: var(--cream);
+  --fg: var(--ink);
+  --card-bg: #fff;
+  --card-border: rgba(6, 1, 23, 0.12);
+  --card-rule: rgba(6, 1, 23, 0.12);
+  --rule: var(--ink);
+  --pill-bg: var(--ink);
+  --pill-fg: var(--cream);
+  --tag-bg: rgba(26, 5, 67, 0.08);
+  --tag-fg: var(--ink);
+  --block-fg: var(--cream);
+  --rest-border: rgba(6, 1, 23, 0.14);
+  --rest-fg: rgba(6, 1, 23, 0.45);
+  --input-bg: #fff;
+  --grain-a: 0.16;
+  --grain-b: 0.09;
+  --ribbon-pink: 0.55;
+  --ribbon-violet: 0.55;
+  --ribbon-glow: 0;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  margin: 0; min-height: 100vh; position: relative; overflow-x: hidden;
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 14px; line-height: 1.5;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--font-display); font-stretch: 125%; letter-spacing: -0.02em; text-transform: uppercase; font-weight: 300; line-height: 1; }
+h1 b, h2 b, h3 b { font-weight: 800; }
+input, textarea, select {
+  background: var(--input-bg); color: var(--fg); border: 1px solid var(--card-border);
+  border-radius: 10px; padding: 10px 14px; font: inherit;
+}
+
+.page { position: relative; max-width: 1200px; margin: 0 auto; padding: 26px 40px 40px; }
+.topbar { display: flex; justify-content: flex-end; }
+
+/* Wide face: Archivo at 125% width */
+.wide { font-family: var(--font-display); font-stretch: 125%; letter-spacing: -0.02em; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; border: 0; border-radius: 100px;
+  background: var(--pill-bg); color: var(--pill-fg); font: inherit; font-weight: 500; font-size: 13px; cursor: pointer; text-decoration: none;
+}
+.theme-toggle {
+  display: inline-flex; align-items: center; padding: 6px 16px; border: 1px solid var(--rule); border-radius: 100px;
+  background: transparent; color: var(--fg); font: inherit; font-size: 12px; cursor: pointer;
+}
+
+.card { border-radius: 10px; overflow: hidden; background: var(--card-bg); border: 1px solid var(--card-border); }
+.card-head { padding: 16px 24px 18px; border-bottom: 1px solid var(--card-rule); }
+.card-head small { display: block; font-size: 13px; opacity: 0.8; margin-bottom: 2px; }
+
+.tag { display: inline-block; padding: 5px 12px; border-radius: 100px; font-size: 12px; background: var(--tag-bg); color: var(--tag-fg); }
+.tag.needs { background: var(--electric); color: var(--cream); }
+
+.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+/* Grain ribbon: decorative, behind content */
+.ribbon-bg { position: absolute; inset: 0 0 auto 0; height: 100vh; overflow: hidden; pointer-events: none; z-index: 0; }
+.ribbon-bg .ribbon { position: absolute; border-radius: 50%; filter: blur(28px); }
+.ribbon-bg .r1 { left: -10%; top: -38%; width: 120%; height: 60%; border: 26px solid var(--pink); opacity: var(--ribbon-pink); transform: rotate(-6deg); }
+.ribbon-bg .r2 { left: -5%; top: -34%; width: 118%; height: 60%; border: 34px solid var(--electric); opacity: var(--ribbon-violet); transform: rotate(-6deg); filter: blur(36px); }
+.ribbon-bg .r3 { left: 40%; top: 55%; width: 90%; height: 70%; border: 40px solid var(--electric); opacity: var(--ribbon-glow); filter: blur(60px); }
+.ribbon-bg .grain { position: absolute; inset: 0; background-image: url("/grain.png"); background-size: 240px 240px; mix-blend-mode: overlay; opacity: var(--grain-a); }
+.ribbon-bg .grain.c { background-size: 800px 800px; opacity: var(--grain-b); }
