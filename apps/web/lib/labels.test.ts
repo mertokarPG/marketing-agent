@@ -4,9 +4,9 @@ import { postLabel } from "./labels";
 const now = new Date("2026-10-19T12:00:00Z");
 const future = "2026-10-20T08:00:00Z";
 const past = "2026-10-18T08:00:00Z";
-type Brand = { publisher: string | null; approval_mode: string };
-const pub: Brand = { publisher: "postiz", approval_mode: "review" };
-const nopub: Brand = { publisher: null, approval_mode: "review" };
+type Brand = { publisher: string | null };
+const pub: Brand = { publisher: "postiz" };
+const nopub: Brand = { publisher: null };
 
 const rows: [string, { status: string; planned_at: string; needs_new_time: boolean }, Brand, string, string][] = [
   ["pending", { status: "pending_approval", planned_at: future, needs_new_time: false }, pub, "Needs your OK", "needs"],

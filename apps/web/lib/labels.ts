@@ -2,7 +2,7 @@ export type LabelTone = "needs" | "ok" | "muted" | "busy";
 
 export function postLabel(
   p: { status: string; planned_at: string; needs_new_time: boolean },
-  brand: { publisher: string | null; approval_mode: string },
+  brand: { publisher: string | null },
   now: Date,
   /** redone: the agent's redo came back and nobody has changed the post since; redoFailed: it failed, likewise. */
   opts: { redone?: boolean; redoFailed?: boolean } = {},

@@ -8,7 +8,7 @@ export function PostTile({ post, href, thumb, brand, now, rework, redone = false
   post: TilePost;
   href: string;
   thumb: string | null;
-  brand: { publisher: string | null; approval_mode: string };
+  brand: { publisher: string | null };
   now: Date;
   /** "Reworking: 'more playful'… about 2 minutes" while the agent redoes this post. */
   rework?: string | null;

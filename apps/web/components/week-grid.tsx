@@ -6,7 +6,7 @@ export function WeekGrid({ days, slug, thumbs, brand, now, reworks = {}, redone 
   days: Day<TilePost>[];
   slug: string;
   thumbs: Record<string, string | null>;
-  brand: { publisher: string | null; approval_mode: string };
+  brand: { publisher: string | null };
   now: Date;
   /** Veil text for posts the agent is reworking, by post id. */
   reworks?: Record<string, string>;
