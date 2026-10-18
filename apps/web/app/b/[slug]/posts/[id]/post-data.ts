@@ -127,9 +127,10 @@ export function weekdayName(iso: string, tz: string): string {
   return parts(iso, tz, { weekday: "long" }).weekday;
 }
 
-/** "Went out" once the post is published, "Goes out" before. */
+/** "Went out" once published, "Was planned for" once skipped, "Goes out" otherwise. */
 export function whenLabel(status: string): string {
-  return status === "published" ? "Went out" : "Goes out";
+  if (status === "published") return "Went out";
+  return status === "rejected" ? "Was planned for" : "Goes out";
 }
 
 export function formatChip(count: number, status?: string): string {

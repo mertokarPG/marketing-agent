@@ -197,7 +197,7 @@ export function SlideSheet({ slides, current, onSelect, editable, onChange, save
   };
 
   const many = slides.length > 1;
-  const title = label ?? (slides.length === 1 ? "All 1 slide" : `All ${slides.length} slides, in order`);
+  const title = label ?? (slides.length === 1 ? "The slide" : `All ${slides.length} slides, in order`);
   const status = save?.kind === "saving" ? "Saving…" : save?.kind === "saved" ? "Saved ✓" : canEdit && many ? "Drag to reorder · ✕ to remove" : "";
 
   return (

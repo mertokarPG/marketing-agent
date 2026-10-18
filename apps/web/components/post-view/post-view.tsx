@@ -171,7 +171,7 @@ export function PostView({ data, variant }: { data: PostViewData; variant: "over
             save={version ? undefined : slideEdit.save}
             onUndo={slideEdit.undo}
             products={data.products}
-            label={version ? (version.count === 1 ? "Its 1 slide" : `Its ${version.count} slides, in order`) : undefined}
+            label={version ? (version.count === 1 ? "Its slide" : `Its ${version.count} slides, in order`) : undefined}
           />
         </div>
 

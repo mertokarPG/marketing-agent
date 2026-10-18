@@ -143,6 +143,7 @@ describe("formatting", () => {
     expect(whenLabel("published")).toBe("Went out");
     expect(whenLabel("pending_approval")).toBe("Goes out");
     expect(whenLabel("approved")).toBe("Goes out");
+    expect(whenLabel("rejected")).toBe("Was planned for");
   });
   it("previewCaption truncates at a word and flags it", () => {
     expect(previewCaption("short one", 20)).toEqual({ text: "short one", more: false });
