@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { Ribbon } from "@/components/ribbon";
 import { loadBrand } from "../brand-context";
-import { postingDaysText, approvalText } from "./brand-text";
+import { postingDaysText, approvalText, timezoneText } from "./brand-text";
 
 export default async function BrandPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -11,7 +11,7 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
   if (error) console.warn(`[brand] schedule query failed: ${error.message}`);
 
   const rows: [string, string][] = [
-    ["Time zone", brand.timezone],
+    ["Time zone", timezoneText(brand.timezone)],
     ["Posting days", postingDaysText(data?.posting_schedule)],
     ["Approval", approvalText(brand.approval_mode)],
   ];

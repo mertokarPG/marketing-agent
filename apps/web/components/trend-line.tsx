@@ -15,7 +15,6 @@ export function TrendLine({ weeks }: { weeks: { weekStart: string; reach: number
         <title>{summary}</title>
         <line x1={PX} x2={W - PX} y1={H - PB} y2={H - PB} className="trend-axis" />
         <polyline points={pts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")} className="trend-line" fill="none" vectorEffect="non-scaling-stroke" />
-        {pts.map((p) => <circle key={p.w.weekStart} cx={p.x} cy={p.y} r="3.5" className="trend-dot" vectorEffect="non-scaling-stroke"><title>{`Week of ${short(p.w.weekStart)}: ${p.w.reach.toLocaleString("en-GB")} people`}</title></circle>)}
       </svg>
       <figcaption><span>{short(weeks[0].weekStart)}</span><span>Now</span></figcaption>
     </figure>

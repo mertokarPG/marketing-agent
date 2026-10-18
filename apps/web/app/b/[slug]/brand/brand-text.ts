@@ -11,7 +11,11 @@ export function postingDaysText(schedule: unknown): string {
 }
 
 export function approvalText(mode: string): string {
-  return mode === "autopilot"
-    ? "Autopilot: posts go out on their own."
-    : "Review: nothing goes out until you say OK.";
+  return mode === "autopilot" ? "Posts go out on their own." : "Nothing goes out until you say OK.";
+}
+
+/** "Europe/Brussels" -> "Brussels time (Europe/Brussels)". */
+export function timezoneText(tz: string): string {
+  const city = tz.split("/").pop()?.replace(/_/g, " ");
+  return city && tz.includes("/") ? `${city} time (${tz})` : tz;
 }

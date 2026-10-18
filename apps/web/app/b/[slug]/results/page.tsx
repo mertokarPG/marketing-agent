@@ -34,6 +34,7 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
   const posts = (postsQ.data ?? []) as PRow[];
 
   // PostgREST caps a response at 1000 rows and a post has many snapshots, so ask in small chunks, newest first.
+  // 10 posts per chunk assumes under ~100 snapshots per post (a daily measurement stays well below that).
   const ids = posts.map((p) => p.id);
   const chunks: string[][] = [];
   for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10));
