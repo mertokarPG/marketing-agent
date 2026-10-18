@@ -53,7 +53,7 @@ export async function loadPost(slug: string, id: string, review: boolean): Promi
 
   const [postQ, userQ] = await Promise.all([
     supabase.from("posts")
-      .select("id, status, planned_at, caption, hashtags, media, rationale, needs_new_time, last_changed_by, last_changed_at")
+      .select("id, status, planned_at, caption, hashtags, media, rationale, needs_new_time, last_changed_by, last_changed_at, publish_error")
       .eq("id", id).eq("brand_id", brand.id).maybeSingle(),
     supabase.auth.getUser(),
   ]);

@@ -76,26 +76,32 @@ export type PostActionsView = {
   results: boolean;
   approveBlocked: string | null;
   openTimePicker: boolean;
+  /** Undo (back to needs-your-OK) is offered on an approved post until its time. */
+  undo: boolean;
   note: string | null;
 };
 
 const PASSED = "The planned time has passed. Pick a new time.";
+/** publish_error the worker sets when an approved post's publish window closed (core expireMissedApprovedPosts). */
+const MISSED_WINDOW = "missed publish window";
 
 /** Which tools and buttons the post view shows, by status, approval mode and role. */
 export function postActions(
-  post: { status: string; planned_at: string; needs_new_time: boolean },
+  post: { status: string; planned_at: string; needs_new_time: boolean; publish_error?: string | null },
   brand: { approval_mode: string },
   role: string,
   now: Date,
 ): PostActionsView {
   const ro = (note: string | null, results = false): PostActionsView =>
-    ({ kind: "none", editable: false, results, approveBlocked: null, openTimePicker: false, note });
+    ({ kind: "none", editable: false, results, approveBlocked: null, openTimePicker: false, undo: false, note });
   switch (post.status) {
     case "published": return ro(null, true);
     case "publishing": return ro("This post is going out now.");
     case "rejected": return ro("This post was skipped, so it won't go out.");
     case "failed": return ro("Instagram didn't accept this post, so it didn't go out.");
-    case "expired": return ro("This post wasn't approved before its time, so it didn't go out.");
+    case "expired": return ro(post.publish_error === MISSED_WINDOW
+      ? "It was approved but couldn't go out in time."
+      : "This post wasn't approved before its time, so it didn't go out.");
     case "reworking": return ro("The agent is reworking this post.");
     case "pending_approval":
     case "approved": break;
@@ -105,9 +111,10 @@ export function postActions(
   const passed = post.needs_new_time || new Date(post.planned_at).getTime() <= now.getTime();
   const base = { editable: true, results: false, note: null };
   if (post.status === "pending_approval") {
-    return { ...base, kind: "review", approveBlocked: passed ? PASSED : null, openTimePicker: post.needs_new_time };
+    return { ...base, kind: "review", approveBlocked: passed ? PASSED : null, openTimePicker: post.needs_new_time, undo: false };
   }
-  return { ...base, kind: brand.approval_mode === "autopilot" ? "autopilot" : "approved", approveBlocked: null, openTimePicker: false };
+  const kind = brand.approval_mode === "autopilot" ? "autopilot" : "approved";
+  return { ...base, kind, approveBlocked: null, openTimePicker: false, undo: kind === "approved" && !passed };
 }
 
 function parts(iso: string | Date, tz: string, opts: Intl.DateTimeFormatOptions) {

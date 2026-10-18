@@ -73,7 +73,7 @@ export function PostActions({ slug, postId, view, flush, onAfter, locked = false
       {view.kind === "approved" && (
         <div className="pv-actions">
           <span className="pill done" role="status">Approved ✓</span>
-          <button type="button" className="linkish" disabled={busy} onClick={() => run("undone", () => unapprove(slug, postId))}>Undo</button>
+          {view.undo && <button type="button" className="linkish" disabled={busy} onClick={() => run("undone", () => unapprove(slug, postId))}>Undo</button>}
           <button type="button" className="linkish skip" disabled={busy} onClick={() => setConfirming(true)}>{skipLabel}</button>
         </div>
       )}

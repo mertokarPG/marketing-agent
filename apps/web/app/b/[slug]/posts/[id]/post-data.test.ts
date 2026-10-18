@@ -103,7 +103,12 @@ describe("postActions", () => {
     expect(postActions(post("pending_approval", past), review, "owner", now).approveBlocked).toBe("The planned time has passed. Pick a new time.");
   });
   it("approved in review mode: Approved ✓ + Undo, still editable", () => {
-    expect(postActions(post("approved"), review, "owner", now)).toMatchObject({ kind: "approved", editable: true });
+    expect(postActions(post("approved"), review, "owner", now)).toMatchObject({ kind: "approved", editable: true, undo: true });
+  });
+  it("no Undo once the approved post's time has passed", () => {
+    expect(postActions(post("approved", past), review, "owner", now)).toMatchObject({ kind: "approved", undo: false });
+    expect(postActions(post("approved", "2026-10-19T12:00:00Z"), review, "owner", now).undo).toBe(false);
+    expect(postActions(post("pending_approval"), review, "owner", now).undo).toBe(false);
   });
   it("autopilot approved: Keep / Pull this post", () => {
     expect(postActions(post("approved"), auto, "owner", now)).toMatchObject({ kind: "autopilot", editable: true });
@@ -123,6 +128,10 @@ describe("postActions", () => {
     expect(postActions(post("rejected"), review, "owner", now).note).toBe("This post was skipped, so it won't go out.");
     expect(postActions(post("failed", past), review, "owner", now).note).toBe("Instagram didn't accept this post, so it didn't go out.");
     expect(postActions(post("expired", past), review, "owner", now).note).toBe("This post wasn't approved before its time, so it didn't go out.");
+    expect(postActions({ ...post("expired", past), publish_error: "missed publish window" }, review, "owner", now).note)
+      .toBe("It was approved but couldn't go out in time.");
+    expect(postActions({ ...post("expired", past), publish_error: null }, review, "owner", now).note)
+      .toBe("This post wasn't approved before its time, so it didn't go out.");
     expect(postActions(post("reworking"), review, "owner", now)).toMatchObject({ kind: "none", editable: false, note: "The agent is reworking this post." });
   });
 });
