@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createTestDb, seedTestBrand, addTestMember } from "../src/testing.js";
 import type { Db } from "../src/db.js";
 import { enqueueRun, claimNextRun } from "../src/repo/runs.js";
-import { expirePendingPosts, expireMissedApprovedPosts, claimDuePosts } from "../src/repo/posts.js";
+import { expirePendingPosts, expireMissedApprovedPosts, claimDuePosts, hasCorePostOnLocalDate, getPlannedPosts } from "../src/repo/posts.js";
 
 let db: Db;
 let pg: PGlite;
@@ -25,10 +25,10 @@ async function asUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
   try { return await fn(); } finally { await pg.query("reset role"); }
 }
 
-async function post(brand: string, status: string, plannedAt: string, extra = ""): Promise<string> {
+async function post(brand: string, status: string, plannedAt: string, needsNewTime = false): Promise<string> {
   const [r] = await db.query<{ id: string }>(
-    `insert into posts (brand_id, kind, status, planned_at, caption ${extra ? ", needs_new_time" : ""})
-     values ($1,'core',$2,${plannedAt},'c' ${extra ? ", " + extra : ""}) returning id`, [brand, status]);
+    `insert into posts (brand_id, kind, status, planned_at, caption, needs_new_time)
+     values ($1,'core',$2,${plannedAt},'c',$3) returning id`, [brand, status, needsNewTime]);
   return r.id;
 }
 const statusOf = async (id: string) => (await db.query<{ status: string }>("select status from posts where id = $1", [id]))[0].status;
@@ -40,7 +40,7 @@ describe("dashboard schema", () => {
   });
 
   it("expirePendingPosts skips needs_new_time", async () => {
-    const held = await post(brandA, "pending_approval", "now() - interval '1 hour'", "true");
+    const held = await post(brandA, "pending_approval", "now() - interval '1 hour'", true);
     const plain = await post(brandA, "pending_approval", "now() - interval '1 hour'");
     await expirePendingPosts(db);
     expect(await statusOf(held)).toBe("pending_approval");
@@ -61,6 +61,18 @@ describe("dashboard schema", () => {
     const id = await post(pub, "reworking", "now() - interval '1 minute'");
     expect(await claimDuePosts(db, 10)).toEqual([]);
     expect(await statusOf(id)).toBe("reworking");
+  });
+
+  it("hasCorePostOnLocalDate counts reworking posts", async () => {
+    await post(brandA, "reworking", "now() + interval '1 day'");
+    const [d] = await db.query<{ d: string }>("select ((now() + interval '1 day') at time zone 'Europe/Brussels')::date::text as d");
+    expect(await hasCorePostOnLocalDate(db, brandA, "Europe/Brussels", d.d)).toBe(true);
+  });
+
+  it("getPlannedPosts includes reworking posts", async () => {
+    const id = await post(brandA, "reworking", "now() + interval '1 day'");
+    const rows = await getPlannedPosts(db, brandA, new Date(Date.now() - 86400e3), new Date(Date.now() + 5 * 86400e3));
+    expect(rows.map((r) => r.id)).toEqual([id]);
   });
 
   it("claimNextRun prefers revise runs", async () => {

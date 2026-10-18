@@ -17,7 +17,7 @@ export interface PostInsert {
   published_at?: Date | null; external_post_id?: string | null; notes?: string | null;
 }
 export type DuePost = PostRow & { publisher: "postiz" };
-export const NON_TERMINAL_STATUSES: PostStatus[] = ["pending_approval", "approved", "publishing"];
+export const NON_TERMINAL_STATUSES: PostStatus[] = ["pending_approval", "approved", "publishing", "reworking"];
 
 export async function insertPost(db: Db, p: PostInsert): Promise<string> {
   const [row] = await db.query<{ id: string }>(

@@ -32,7 +32,7 @@ create table if not exists public.post_revisions (
   requested_by uuid not null,
   feedback text not null,
   prior_status text not null,
-  version_id uuid not null references public.post_versions(id),
+  version_id uuid not null references public.post_versions(id) on delete cascade,
   status text not null default 'queued' check (status in ('queued','running','done','failed')),
   error text,
   created_at timestamptz not null default now(),
