@@ -127,10 +127,16 @@ export function weekdayName(iso: string, tz: string): string {
   return parts(iso, tz, { weekday: "long" }).weekday;
 }
 
-/** "Went out" once published, "Was planned for" once skipped, "Goes out" otherwise. */
+/** "Went out" once published, "Was planned for" once skipped, failed or expired, "Goes out" otherwise. */
 export function whenLabel(status: string): string {
   if (status === "published") return "Went out";
-  return status === "rejected" ? "Was planned for" : "Goes out";
+  return ["rejected", "failed", "expired"].includes(status) ? "Was planned for" : "Goes out";
+}
+
+/** Title above the slide sheet: the current post's slides, or an earlier version's. */
+export function slideSheetTitle(count: number, earlierVersion: boolean): string {
+  if (earlierVersion) return count === 1 ? "Its slide" : `Its ${count} slides, in order`;
+  return count === 1 ? "The slide" : `All ${count} slides, in order`;
 }
 
 export function formatChip(count: number, status?: string): string {

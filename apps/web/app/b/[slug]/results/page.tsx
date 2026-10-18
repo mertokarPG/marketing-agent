@@ -5,7 +5,7 @@ import { TrendLine } from "@/components/trend-line";
 import { signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "../brand-context";
 import { postTitle } from "../home-data";
-import { bestPosts, changePct, firstSentence, weeklyReach, windowTotals, type MetricRow } from "./results-data";
+import { bestPosts, changePct, firstSentence, resultsEmptyText, weeklyReach, windowTotals, type MetricRow } from "./results-data";
 
 const DAY = 86_400_000;
 type PRow = { id: string; planned_at: string; caption: string | null; rationale: string; media: { storage_path: string; bucket?: string }[] | null };
@@ -24,9 +24,10 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
   // Posts from the oldest of: 60 days (this vs previous 30) and the 13-week trend start.
   const trendStart = zonedTimeToUtc(addDaysYmd(currentWeekStart(now, tz), -12 * 7), "00:00", tz);
   const since = new Date(Math.min(trendStart.getTime(), now.getTime() - 60 * DAY));
-  const [postsQ, insightQ] = await Promise.all([
+  const [postsQ, insightQ, publishedQ] = await Promise.all([
     supabase.from("posts").select("id, planned_at, caption, rationale, media").eq("brand_id", brand.id).eq("status", "published").gte("planned_at", since.toISOString()).lte("planned_at", now.toISOString()),
     supabase.from("brand_insights").select("body").eq("brand_id", brand.id).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("posts").select("id", { count: "exact", head: true }).eq("brand_id", brand.id).eq("status", "published"),
   ]);
   if (postsQ.error) throw new Error(`results query failed: ${postsQ.error.message}`);
   if (insightQ.error) console.warn(`[results] insights query failed: ${insightQ.error.message}`);
@@ -44,6 +45,8 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
   const metrics = metricQs.flatMap((q) => (q.data ?? []) as MetricRow[]);
 
   const hasResults = metrics.length > 0;
+  if (publishedQ.error) console.warn(`[results] published count failed: ${publishedQ.error.message}`);
+  const emptyText = resultsEmptyText((publishedQ.count ?? 0) > 0, hasResults);
   const curFrom = new Date(now.getTime() - 30 * DAY), prevFrom = new Date(now.getTime() - 60 * DAY);
   const cur = windowTotals(metrics, posts, curFrom, now);
   const prev = windowTotals(metrics, posts, prevFrom, curFrom);
@@ -56,8 +59,8 @@ export default async function ResultsPage({ params }: { params: Promise<{ slug: 
   return (
     <div>
       <h1 className="hero wide">Your <b>results.</b></h1>
-      {!hasResults ? (
-        <p className="lede">Your results appear here once your first posts go out.</p>
+      {emptyText ? (
+        <p className="lede">{emptyText}</p>
       ) : (
         <>
           <p className="lede">The last 30 days.</p>

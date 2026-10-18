@@ -85,3 +85,11 @@ export function monthLabel(ym: string): string {
   const [y, m] = ym.split("-").map(Number);
   return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1)));
 }
+
+/** Empty-state line for the results page, or null when there are numbers to show. */
+export function resultsEmptyText(hasPublished: boolean, hasMetrics: boolean): string | null {
+  if (hasMetrics) return null;
+  return hasPublished
+    ? "Your posts are out. Results show up once Instagram shares the numbers."
+    : "Your results appear here once your first posts go out.";
+}

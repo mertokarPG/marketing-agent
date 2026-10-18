@@ -91,3 +91,10 @@ export function summarizeResults<P extends RPost>(posts: P[], metrics: Metric[],
     best,
   };
 }
+
+export const HOME_RESULTS_EMPTY = "Results show up here once your posts go out and Instagram shares the numbers.";
+
+/** True once the home results strip has at least one real number or a best post to show. */
+export function hasHomeResults(r: { reach: number | null; changePct: number | null; best: unknown }): boolean {
+  return r.reach !== null || r.changePct !== null || r.best !== null;
+}

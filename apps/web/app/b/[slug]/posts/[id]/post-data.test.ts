@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   parseCaption, joinCaption, parseTags, publishedLength, captionLimit, captionProblem, stepNav, postActions,
-  goesOutLabel, formatChip, whenLabel, previewCaption, lastChangedText, validLocalTime, isPastLocal, latestMetrics,
+  goesOutLabel, formatChip, whenLabel, slideSheetTitle, previewCaption, lastChangedText, validLocalTime, isPastLocal, latestMetrics,
 } from "./post-data";
 
 describe("parseCaption / joinCaption", () => {
@@ -144,6 +144,15 @@ describe("formatting", () => {
     expect(whenLabel("pending_approval")).toBe("Goes out");
     expect(whenLabel("approved")).toBe("Goes out");
     expect(whenLabel("rejected")).toBe("Was planned for");
+    expect(whenLabel("failed")).toBe("Was planned for");
+    expect(whenLabel("expired")).toBe("Was planned for");
+    expect(whenLabel("reworking")).toBe("Goes out");
+  });
+  it("slideSheetTitle for the current post and for an earlier version", () => {
+    expect(slideSheetTitle(1, false)).toBe("The slide");
+    expect(slideSheetTitle(5, false)).toBe("All 5 slides, in order");
+    expect(slideSheetTitle(1, true)).toBe("Its slide");
+    expect(slideSheetTitle(3, true)).toBe("Its 3 slides, in order");
   });
   it("previewCaption truncates at a word and flags it", () => {
     expect(previewCaption("short one", 20)).toEqual({ text: "short one", more: false });

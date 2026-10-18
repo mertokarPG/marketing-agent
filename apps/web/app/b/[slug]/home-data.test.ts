@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { waitingPosts, homeLede, firstGoesOut, showsNeedsYou, postTitle, weekRangeLabel, resolveWeek, summarizeResults } from "./home-data";
+import { waitingPosts, homeLede, firstGoesOut, showsNeedsYou, postTitle, weekRangeLabel, resolveWeek, summarizeResults, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
 
 const now = new Date("2026-10-19T12:00:00Z");
 const p = (id: string, status: string, planned_at: string) => ({ id, status, planned_at, caption: "" });
@@ -77,5 +77,17 @@ describe("summarizeResults", () => {
   it("no data", () => {
     const r = summarizeResults([], [], now);
     expect(r).toEqual({ reach: null, changePct: null, best: null });
+  });
+});
+
+describe("hasHomeResults", () => {
+  it("is false when there is no reach, change or best post", () => {
+    expect(hasHomeResults({ reach: null, changePct: null, best: null })).toBe(false);
+    expect(HOME_RESULTS_EMPTY).toBe("Results show up here once your posts go out and Instagram shares the numbers.");
+  });
+  it("is true as soon as any number exists", () => {
+    expect(hasHomeResults({ reach: 0, changePct: null, best: null })).toBe(true);
+    expect(hasHomeResults({ reach: null, changePct: 5, best: null })).toBe(true);
+    expect(hasHomeResults({ reach: null, changePct: null, best: { id: "p" } })).toBe(true);
   });
 });

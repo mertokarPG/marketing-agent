@@ -1,14 +1,14 @@
 import { addDaysYmd, zonedTimeToUtc } from "@carepost/core/time";
 import { createClient } from "@/lib/supabase/server";
 import { buildWeek, currentWeekStart } from "@/lib/week";
-import { greeting, firstNameFromEmail } from "@/lib/greeting";
+import { greeting, firstName } from "@/lib/greeting";
 import { NeedsYouCard } from "@/components/needs-you-card";
 import { WeekGrid, WeekNav } from "@/components/week-grid";
 import { ResultsStrip } from "@/components/results-strip";
 import type { TilePost } from "@/components/post-tile";
 import { loadRedoState, signThumbs } from "@/lib/post-tiles";
 import { loadBrand } from "./brand-context";
-import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou } from "./home-data";
+import { waitingPosts, homeLede, firstGoesOut, postTitle, weekRangeLabel, resolveWeek, summarizeResults, showsNeedsYou, hasHomeResults, HOME_RESULTS_EMPTY } from "./home-data";
 
 type Media = { storage_path: string; bucket?: string };
 type Row = TilePost & { media: Media[] | null; last_changed_at: string | null };
@@ -27,7 +27,7 @@ export default async function BrandHome({ params, searchParams }: {
   const weekStart = resolveWeek(week, thisWeek);
 
   const { data: { user } } = await supabase.auth.getUser();
-  const name = firstNameFromEmail(user?.email);
+  const name = firstName(user);
 
   const from = zonedTimeToUtc(weekStart, "00:00", tz).toISOString();
   const to = zonedTimeToUtc(addDaysYmd(weekStart, 7), "00:00", tz).toISOString();
@@ -64,7 +64,7 @@ export default async function BrandHome({ params, searchParams }: {
 
   return (
     <div>
-      <h1 className="hero wide">{greeting(now, tz, name)}, <b>{name.toUpperCase()}.</b></h1>
+      <h1 className="hero wide">{name ? <>{greeting(now, tz)}, <b>{name.toUpperCase()}.</b></> : <>{greeting(now, tz)}.</>}</h1>
       <p className="lede">{homeLede(brand, waiting.length, weekHasPosts)}</p>
 
       {showsNeedsYou(brand, waiting.length) && first && (
@@ -82,7 +82,9 @@ export default async function BrandHome({ params, searchParams }: {
       </div>
       <WeekGrid days={days} slug={slug} thumbs={thumbs} brand={brand} now={now} reworks={reworks} redone={redone} />
 
-      <ResultsStrip slug={slug} reach={results.reach} changePct={results.changePct} bestTitle={bestTitle} />
+      {hasHomeResults(results)
+        ? <ResultsStrip slug={slug} reach={results.reach} changePct={results.changePct} bestTitle={bestTitle} />
+        : <p className="results-empty">{HOME_RESULTS_EMPTY}</p>}
       <p className="closing wide">Post <b>with care.</b></p>
     </div>
   );

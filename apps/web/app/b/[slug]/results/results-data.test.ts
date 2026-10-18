@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { latestMetricsPerPost, windowTotals, changePct, bestPosts, weeklyReach, firstSentence, resolveMonth, monthLabel } from "./results-data";
+import { latestMetricsPerPost, windowTotals, changePct, bestPosts, weeklyReach, firstSentence, resolveMonth, monthLabel, resultsEmptyText } from "./results-data";
 
 const m = (post_id: string, reach: number, saves: number, shares: number, measured_at: string) => ({ post_id, reach, saves, shares, measured_at });
 const post = (id: string, planned_at: string, rationale = "") => ({ id, planned_at, caption: id, rationale });
@@ -76,3 +76,16 @@ describe("resolveMonth", () => {
 });
 
 describe("monthLabel", () => { it("names the month", () => { expect(monthLabel("2026-10")).toBe("October 2026"); }); });
+
+describe("resultsEmptyText", () => {
+  it("nothing published yet", () => {
+    expect(resultsEmptyText(false, false)).toBe("Your results appear here once your first posts go out.");
+  });
+  it("published posts but no numbers yet", () => {
+    expect(resultsEmptyText(true, false)).toBe("Your posts are out. Results show up once Instagram shares the numbers.");
+  });
+  it("no empty state once numbers exist", () => {
+    expect(resultsEmptyText(true, true)).toBeNull();
+    expect(resultsEmptyText(false, true)).toBeNull();
+  });
+});

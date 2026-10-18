@@ -5,6 +5,7 @@ import { saveSlides } from "@/app/b/[slug]/posts/[id]/actions";
 import type { ProductView } from "@/app/b/[slug]/posts/[id]/load-post";
 import { addProduct, moveSlide, removeSlide, MAX_SLIDES, type MediaItem } from "@/lib/slides";
 import { createSaveQueue, type SaveState } from "@/lib/save-queue";
+import { slideSheetTitle } from "@/app/b/[slug]/posts/[id]/post-data";
 import { ProductPicker } from "./product-picker";
 
 export type Slide = { key: number; item: MediaItem; url: string | null };
@@ -197,7 +198,7 @@ export function SlideSheet({ slides, current, onSelect, editable, onChange, save
   };
 
   const many = slides.length > 1;
-  const title = label ?? (slides.length === 1 ? "The slide" : `All ${slides.length} slides, in order`);
+  const title = label ?? slideSheetTitle(slides.length, false);
   const status = save?.kind === "saving" ? "Saving…" : save?.kind === "saved" ? "Saved ✓" : canEdit && many ? "Drag to reorder · ✕ to remove" : "";
 
   return (
